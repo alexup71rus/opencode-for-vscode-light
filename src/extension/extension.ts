@@ -21,7 +21,7 @@ let eventStream: EventStream | undefined;
 let sessionService: SessionService | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  outputChannel = vscode.window.createOutputChannel("OpenCode");
+  outputChannel = vscode.window.createOutputChannel("OCVS");
   context.subscriptions.push(outputChannel);
 
   const log = (message: string) => outputChannel!.appendLine(`[opencode] ${message}`);
@@ -58,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(
       vscode.commands.registerCommand("opencode.openPanel", async () => {
         const action = await vscode.window.showWarningMessage(
-          "Open a folder to start using OpenCode.",
+          "Open a folder to start using OCVS.",
           "Open Folder",
         );
         if (action === "Open Folder") {
@@ -152,8 +152,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.StatusBarAlignment.Right,
       100,
     );
-    statusItem.text = "$(comment-discussion) OpenCode";
-    statusItem.tooltip = "Open OpenCode Chat";
+    statusItem.text = "$(comment-discussion) OCVS";
+    statusItem.tooltip = "Open OCVS Chat";
     statusItem.command = "opencode.openPanel";
     statusItem.show();
     context.subscriptions.push(statusItem);
@@ -182,7 +182,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log(`activation failed: ${message}`);
-    vscode.window.showErrorMessage(`OpenCode failed to start: ${message}`);
+    vscode.window.showErrorMessage(`OCVS: OpenCode failed to start: ${message}`);
     throw err;
   }
 }

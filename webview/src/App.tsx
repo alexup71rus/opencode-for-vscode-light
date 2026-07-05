@@ -264,11 +264,11 @@ export default function App(): React.ReactElement {
   return (
     <div className="app-root">
       <header className="app-header">
-        <div className="app-title" title={headerTitle ?? "OpenCode"}>
+        <div className="app-title" title={headerTitle ?? "OCVS"}>
           <span className="app-title-mark" aria-hidden="true">
             <Logo size={14} />
           </span>
-          <span className="app-title-text">{headerTitle || "OpenCode"}</span>
+          <span className="app-title-text">{headerTitle || "OCVS"}</span>
         </div>
         <div className="header-right">
           <button
@@ -381,7 +381,7 @@ export default function App(): React.ReactElement {
           {isStarting ? (
             <div className="app-loading">
               <div className="spinner" />
-              <div className="app-loading-text">Starting OpenCode…</div>
+              <div className="app-loading-text">Starting OCVS…</div>
             </div>
           ) : activeSessionId ? (
             <>
@@ -409,7 +409,7 @@ export default function App(): React.ReactElement {
             <div className="chat-empty">
               <div className="chat-empty-glow"><Logo size={56} /></div>
               <div className="chat-empty-title">No active session</div>
-              <div className="chat-empty-sub">Create a new session to start chatting with OpenCode.</div>
+              <div className="chat-empty-sub">Create a new session to start chatting.</div>
               <button
                 className="btn btn-primary"
                 onClick={() => postMessage({ type: "createSession" })}

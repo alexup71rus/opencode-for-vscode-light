@@ -1,7 +1,7 @@
 {
   "name": "opencode-vscode-client",
-  "displayName": "OpenCode Client for VS Code",
-  "description": "OpenCode AI agent integration with native VS Code UI",
+  "displayName": "OCVS — OpenCode client for VS Code",
+  "description": "Lightweight frontend for the OpenCode AI agent backend with native VS Code UI",
   "version": "0.1.0",
   "publisher": "opencode",
   "icon": "media/icon.png",
@@ -26,15 +26,15 @@
     "commands": [
       {
         "command": "opencode.openPanel",
-        "title": "OpenCode: Open Chat Panel"
+        "title": "OCVS: Open Chat Panel"
       },
       {
         "command": "opencode.newSession",
-        "title": "OpenCode: New Session"
+        "title": "OCVS: New Session"
       }
     ],
     "configuration": {
-      "title": "OpenCode",
+      "title": "OCVS",
       "properties": {
         "opencode.binaryPath": {
           "type": "string",

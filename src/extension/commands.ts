@@ -21,7 +21,7 @@ export function registerCommands(
       try {
         await sessionService.createSession();
       } catch (err) {
-        vscode.window.showErrorMessage(`OpenCode: failed to create session: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(`OCVS: failed to create session: ${errorMessage(err)}`);
       }
     }),
   );

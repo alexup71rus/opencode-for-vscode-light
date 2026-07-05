@@ -78,7 +78,7 @@ export class WebviewPanelManager {
 
     this.panel = vscode.window.createWebviewPanel(
       "opencode.chat",
-      "OpenCode",
+      "OCVS",
       vscode.ViewColumn.Two,
       {
         enableScripts: true,
@@ -641,7 +641,7 @@ export class WebviewPanelManager {
     const message = err instanceof Error ? err.message : String(err);
     this.output.appendLine(`[opencode] failed to ${action}: ${message}`);
     this.postMessage({ type: "error", message: `failed to ${action}: ${message}` });
-    vscode.window.showErrorMessage(`OpenCode: failed to ${action}.`);
+    vscode.window.showErrorMessage(`OCVS: failed to ${action}.`);
   }
 
   private getHtmlForWebview(webview: vscode.Webview, webviewRoot: vscode.Uri): string {
@@ -702,7 +702,7 @@ export class WebviewPanelManager {
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenCode</title>
+  <title>OCVS</title>
   <style>
     body { margin: 0; padding: 2rem; font-family: var(--vscode-font-family); color: var(--vscode-foreground); }
     .root { display: flex; align-items: center; justify-content: center; height: 100vh; }
@@ -710,7 +710,7 @@ export class WebviewPanelManager {
 </head>
 <body>
   <div class="root">
-    <p>OpenCode webview bundle is not built. Run <code>npm run compile:webview</code>.</p>
+    <p>OCVS webview bundle is not built. Run <code>npm run compile:webview</code>.</p>
   </div>
 </body>
 </html>`;
