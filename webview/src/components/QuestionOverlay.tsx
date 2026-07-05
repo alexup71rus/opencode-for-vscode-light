@@ -10,8 +10,9 @@ interface QuestionOverlayProps {
 /**
  * Shows pending agent questions as a block that overlaps the composer, so it is
  * clear the user must answer (free-form is always available) rather than send a
- * normal message. One question visible at a time, navigated by dots/arrows.
- * Backed by GET /question polling + POST .../reply|/reject.
+ * normal message. One question visible at a time; navigation is via thin
+ * clickable stripes, and single-select answers auto-advance to the next
+ * question. Backed by GET /question polling + POST .../reply|/reject.
  */
 export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.ReactElement | null {
   const requests = useStore(
@@ -81,7 +82,7 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
               </div>
 
               {total > 1 && (
-                <QuestionTabs
+                <QuestionStripes
                   total={total}
                   current={current}
                   answered={Array.from({ length: total }, (_, i) => isAnswered(req, i))}
@@ -95,37 +96,20 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
                 multiple={q.multiple}
                 customAllowed={customAllowed(q.custom)}
                 customValue={custom[k] ?? ""}
-                onToggle={(label) => toggle(req.id, current, label, q.multiple)}
+                onToggle={(label) => {
+                  const wasSelected = sel.includes(label);
+                  toggle(req.id, current, label, q.multiple);
+                  // Single-select auto-advance: when the user picks an option
+                  // (not deselects) and a later question exists, jump to it so
+                  // they can keep answering without manual navigation.
+                  if (!q.multiple && !wasSelected && current < total - 1) {
+                    setIdx(current + 1);
+                  }
+                }}
                 onCustom={(v) => setCustom((c) => ({ ...c, [k]: v }))}
                 onNavKey={(dir) => setIdx(current + dir)}
                 onSubmit={() => submit(req)}
               />
-
-              {total > 1 && (
-                <div className="question-nav">
-                  <button
-                    type="button"
-                    className="btn btn-xs"
-                    onClick={() => setIdx(current - 1)}
-                    disabled={current === 0}
-                    title="Previous question"
-                  >
-                    ←
-                  </button>
-                  <span className="question-nav-pos">
-                    {current + 1} / {total}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-xs"
-                    onClick={() => setIdx(current + 1)}
-                    disabled={current === total - 1}
-                    title="Next question"
-                  >
-                    →
-                  </button>
-                </div>
-              )}
 
               <div className="question-actions">
                 <button
@@ -148,31 +132,45 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
   );
 }
 
-interface QuestionTabsProps {
+interface QuestionStripesProps {
   total: number;
   current: number;
   answered: boolean[];
   onSelect: (i: number) => void;
 }
 
-function QuestionTabs({ total, current, answered, onSelect }: QuestionTabsProps): React.ReactElement {
+/**
+ * Thin horizontal segments (one per question) that double as a progress
+ * indicator and a click target for navigation. States:
+ *  - answered: green fill
+ *  - current:  accent fill, slightly thicker
+ *  - pending:  muted
+ * Replaces the former pill-tab + arrow-row combo to save vertical space and
+ * avoid duplicating navigation.
+ */
+function QuestionStripes({ total, current, answered, onSelect }: QuestionStripesProps): React.ReactElement {
   return (
-    <div className="question-tabs" role="tablist">
+    <div className="question-stripes" role="tablist">
       {Array.from({ length: total }, (_, i) => {
         const isCurrent = i === current;
         const isAnswered = answered[i];
+        const cls = [
+          "question-stripe",
+          isCurrent ? "current" : "",
+          isAnswered ? "done" : "",
+        ].filter(Boolean).join(" ");
         return (
           <button
             key={i}
             type="button"
             role="tab"
             aria-selected={isCurrent}
-            className={`question-tab ${isCurrent ? "current" : ""} ${isAnswered ? "done" : ""}`}
+            className={cls}
             onClick={() => onSelect(i)}
             title={`Question ${i + 1}${isAnswered ? " (answered)" : ""}`}
+            aria-label={`Question ${i + 1}${isAnswered ? ", answered" : ""}`}
           >
-            <span className="question-tab-dot" aria-hidden="true" />
-            <span className="question-tab-idx">{i + 1}</span>
+            <span className="question-stripe-bar" />
           </button>
         );
       })}
