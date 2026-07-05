@@ -96,7 +96,10 @@ export function FileDiffModal(): React.ReactElement | null {
   }, [blocks]);
 
   // Ctrl/Cmd+F opens the search bar; refocuses if already open.
+  // Only active while the modal is open to avoid hijacking Ctrl+F elsewhere.
+  const isOpen = !!diffModal;
   useEffect(() => {
+    if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
         e.preventDefault();
@@ -111,7 +114,7 @@ export function FileDiffModal(): React.ReactElement | null {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [searchOpen]);
+  }, [searchOpen, isOpen]);
 
   // Focus the input when the search bar appears.
   useEffect(() => {

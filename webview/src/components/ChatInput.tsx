@@ -68,6 +68,10 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   }, [sending, isBusy]);
 
   useEffect(() => {
+    setMentionAttachments([]);
+  }, [sessionId]);
+
+  useEffect(() => {
     const el = wrapRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
@@ -222,7 +226,13 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
 
   const activeAttachments = (trimmed: string): MessageAttachment[] | undefined => {
     if (mentionAttachments.length === 0) return undefined;
-    const present = mentionAttachments.filter((a) => trimmed.includes(`@${a.url}`));
+    const present = mentionAttachments.filter((a) => {
+      const tag = `@${a.url}`;
+      const idx = trimmed.indexOf(tag);
+      if (idx === -1) return false;
+      const after = trimmed[idx + tag.length];
+      return !after || /[\s,;!?)"'\]]/.test(after);
+    });
     return present.length > 0 ? present : undefined;
   };
 
