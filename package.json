@@ -3,12 +3,12 @@
   "displayName": "OCVS — OpenCode client for VS Code",
   "description": "Lightweight frontend for the OpenCode AI agent backend with native VS Code UI",
   "version": "0.1.0",
-  "publisher": "opencode",
+  "publisher": "alexup71rus",
   "icon": "media/icon.png",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/opencode/opencode-vscode-client"
+    "url": "https://github.com/alexup71rus/opencode-for-vscode-light"
   },
   "engines": {
     "vscode": "^1.85.0"
