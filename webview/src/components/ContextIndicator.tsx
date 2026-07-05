@@ -58,9 +58,10 @@ function tone(pct: number): { ring: string; track: string; text: string } {
 export function ContextIndicator({ sessionId }: Props): React.ReactElement | null {
   const messages = useStore((s) => s.messagesBySession[sessionId]);
   const providers = useStore((s) => s.providers);
+  const rightPanelOpen = useStore((s) => s.rightPanelOpen);
 
   const last = findLastAssistantWithTokens(messages);
-  if (!last) return null;
+  if (!last || rightPanelOpen) return null;
   const t = last.tokens;
   const provider = providers.find((p) => p.id === last.providerID);
   const model = provider?.models.find((m) => m.modelID === last.modelID);

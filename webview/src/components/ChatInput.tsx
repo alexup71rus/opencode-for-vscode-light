@@ -3,6 +3,7 @@ import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { ModelSelector } from "./ModelSelector";
 import { VariantSelector } from "./VariantSelector";
+import { AgentSelector } from "./AgentSelector";
 import { ContextChips } from "./ContextChips";
 import { formatCost, formatTokenCount } from "../utils";
 import { buildSendOptions } from "../compose";
@@ -595,8 +596,9 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             )}
           </div>
         </div>
-        <div className="chat-input-meta">
+          <div className="chat-input-meta">
           <div className="chat-input-meta-left">
+            <AgentSelector compact />
             {showCharCount && (
               <span className="meta-chip" title={`${lineCount} line(s)`}>
                 {text.length} chars

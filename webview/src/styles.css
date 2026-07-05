@@ -687,13 +687,15 @@ code {
   border-radius: 50%;
   background: var(--vscode-editor-background);
   box-shadow: 0 0 0 1px var(--vscode-panel-border, transparent);
-  opacity: 0.7;
-  transition: opacity 120ms ease;
+  transition: transform 120ms ease;
 }
 
-.ctx-indicator:hover,
+.ctx-indicator:hover {
+  transform: scale(1.08);
+}
+
 .ctx-indicator:focus {
-  opacity: 1;
+  outline: 1px solid var(--vscode-focusBorder, transparent);
 }
 
 .ctx-indicator-ring {
@@ -2153,8 +2155,8 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 16px;
-  padding: 0 4px;
+  min-height: 22px;
+  padding: 2px 4px;
   font-size: 10px;
 }
 
@@ -2163,6 +2165,22 @@ code {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.chat-input-meta-left .agent-selector.compact .agent-selector-button {
+  padding: 2px 4px;
+  font-size: 10px;
+  max-width: 110px;
+  opacity: 0.7;
+}
+
+.chat-input-meta-left .agent-selector.compact .agent-selector-button:hover {
+  opacity: 1;
+}
+
+.chat-input-meta-left .agent-selector-dot {
+  width: 6px;
+  height: 6px;
 }
 
 .meta-chip {
@@ -2223,33 +2241,34 @@ code {
 .recent-panel-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
   padding: 6px 8px 4px;
   border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.06));
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
 }
 
-.recent-panel-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.recent-panel-head:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.08));
+}
+
+.recent-panel-caret {
+  display: inline-block;
+  width: 10px;
+  font-size: 10px;
   opacity: 0.7;
 }
 
-.recent-panel-close {
-  background: transparent;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 4px;
-  opacity: 0.6;
-}
-
-.recent-panel-close:hover {
-  opacity: 1;
-  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1));
+.recent-panel-title {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
 }
 
 .recent-panel-list {
@@ -3271,22 +3290,6 @@ code {
 
 .agent-selector {
   position: relative;
-}
-
-.agent-bar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-top: 1px solid var(--vscode-panel-border, transparent);
-  background: var(--vscode-editor-background);
-}
-
-.agent-bar .agent-selector-button {
-  padding: 4px 8px;
-  font-size: 12px;
-  max-width: 220px;
 }
 
 .agent-selector-button {
