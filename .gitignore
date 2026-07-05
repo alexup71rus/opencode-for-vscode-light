@@ -12,3 +12,4 @@ docs/SPEC-*.md
 
 # Tooling artifacts
 .playwright-mcp/
+.superpowers/

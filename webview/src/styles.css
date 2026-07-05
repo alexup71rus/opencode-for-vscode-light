@@ -73,9 +73,10 @@ code {
 }
 
 .app-title-mark {
-  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
-  font-size: 13px;
-  line-height: 1;
+  color: var(--vscode-foreground);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .app-title-text {

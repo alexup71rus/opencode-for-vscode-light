@@ -4,6 +4,7 @@
   "description": "OpenCode AI agent integration with native VS Code UI",
   "version": "0.1.0",
   "publisher": "opencode",
+  "icon": "media/icon.png",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

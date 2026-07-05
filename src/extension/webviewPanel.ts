@@ -87,7 +87,10 @@ export class WebviewPanelManager {
       },
     );
 
-    this.panel.iconPath = vscode.Uri.joinPath(mediaRoot, "icon.svg");
+    this.panel.iconPath = {
+      light: vscode.Uri.joinPath(mediaRoot, "icon.svg"),
+      dark: vscode.Uri.joinPath(mediaRoot, "icon-dark.svg"),
+    };
     this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, webviewRoot);
 
     this.panel.webview.onDidReceiveMessage(
