@@ -46,7 +46,6 @@ export function VariantSelector(): React.ReactElement | null {
         title={current ? `Thinking: ${current}` : "Thinking: default"}
         aria-label="Select thinking level"
       >
-        <span className="variant-selector-icon" aria-hidden="true">⚡</span>
         <span className="variant-selector-label">{current ?? "auto"}</span>
         <span className="variant-selector-caret">▾</span>
       </button>

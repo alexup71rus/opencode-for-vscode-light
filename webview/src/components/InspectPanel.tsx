@@ -31,6 +31,8 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   const messages = useStore((s) => s.messagesBySession[sessionId]);
   const providers = useStore((s) => s.providers);
   const [open, setOpen] = useState(true);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [segHover, setSegHover] = useState<{ key: string; center: number } | null>(null);
 
   const last = findLastAssistantWithTokens(messages);
   if (!last) return null;
@@ -62,47 +64,85 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
         <div className="context-usage">
           {limit > 0 ? (
             <>
-              <div className="context-bar context-bar-segmented" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                {segs.map((s) => {
-                  const w = limit > 0 ? (s.value / limit) * 100 : 0;
-                  const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
-                  return (
-                    <div
-                      key={s.key}
-                      className="context-bar-seg"
-                      style={{ width: `${w}%`, background: s.color }}
-                      title={`${s.label}: ${formatTokenCount(s.value)} (${segPctOfLimit}% of limit)`}
-                    />
-                  );
-                })}
+              <div className="context-bar-wrap">
+                <div className="context-bar context-bar-segmented" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+                  {segs.map((s) => {
+                    const w = limit > 0 ? (s.value / limit) * 100 : 0;
+                    return (
+                      <div
+                        key={s.key}
+                        className="context-bar-seg"
+                        style={{ width: `${w}%`, background: s.color }}
+                        onMouseEnter={(e) => {
+                          const wrap = e.currentTarget.closest(".context-bar-wrap") as HTMLElement | null;
+                          if (!wrap) return;
+                          const sr = e.currentTarget.getBoundingClientRect();
+                          const wr = wrap.getBoundingClientRect();
+                          setSegHover({ key: s.key, center: sr.left - wr.left + sr.width / 2 });
+                        }}
+                        onMouseLeave={() => setSegHover((h) => (h?.key === s.key ? null : h))}
+                      />
+                    );
+                  })}
+                </div>
+                {segHover &&
+                  (() => {
+                    const s = segs.find((x) => x.key === segHover.key);
+                    if (!s) return null;
+                    const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
+                    const segPctOfUsed = used > 0 ? Math.round((s.value / used) * 100) : 0;
+                    return (
+                      <div className="context-seg-tooltip" style={{ left: segHover.center }} role="tooltip">
+                        <div className="context-seg-tooltip-head">
+                          <span className="context-legend-dot" style={{ background: s.color }} />
+                          <span>{s.label}</span>
+                        </div>
+                        <div className="context-seg-tooltip-row">{formatTokenCount(s.value)} tokens</div>
+                        <div className="context-seg-tooltip-row">{segPctOfUsed}% of context</div>
+                        <div className="context-seg-tooltip-row">{segPctOfLimit}% of limit</div>
+                      </div>
+                    );
+                  })()}
               </div>
               <div className="context-usage-label">
                 {used.toLocaleString()} / {limit.toLocaleString()} ({pct}%)
               </div>
-              <ul className="context-legend">
-                {segs.map((s) => {
-                  const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
-                  return (
-                    <li key={s.key} className="context-legend-row" title={`${s.label}: ${formatTokenCount(s.value)} (${segPctOfLimit}% of limit)`}>
-                      <span className="context-legend-dot" style={{ background: s.color }} />
-                      <span className="context-legend-label">{s.label}</span>
-                      <span className="context-legend-value">{formatTokenCount(s.value)}</span>
-                      <span className="context-legend-pct">{segPctOfLimit}%</span>
+              <div className="context-legend-toggle-row">
+                <button
+                  type="button"
+                  className="context-legend-toggle"
+                  onClick={() => setLegendOpen((v) => !v)}
+                  aria-expanded={legendOpen}
+                >
+                  {legendOpen ? "Hide legend" : "Show legend"}
+                </button>
+              </div>
+              {legendOpen && (
+                <ul className="context-legend">
+                  {segs.map((s) => {
+                    const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
+                    return (
+                      <li key={s.key} className="context-legend-row" title={`${s.label}: ${formatTokenCount(s.value)} (${segPctOfLimit}% of limit)`}>
+                        <span className="context-legend-dot" style={{ background: s.color }} />
+                        <span className="context-legend-label">{s.label}</span>
+                        <span className="context-legend-value">{formatTokenCount(s.value)}</span>
+                        <span className="context-legend-pct">{segPctOfLimit}%</span>
+                      </li>
+                    );
+                  })}
+                  {tokens.reasoning > 0 && (
+                    <li
+                      className="context-legend-row context-legend-aux"
+                      title={`Reasoning (output, not counted toward input context): ${formatTokenCount(tokens.reasoning)}`}
+                    >
+                      <span className="context-legend-dot" style={{ background: "var(--vscode-charts-orange, #e07b00)" }} />
+                      <span className="context-legend-label">Reasoning (output)</span>
+                      <span className="context-legend-value">{formatTokenCount(tokens.reasoning)}</span>
+                      <span className="context-legend-pct" aria-hidden="true">—</span>
                     </li>
-                  );
-                })}
-                {tokens.reasoning > 0 && (
-                  <li
-                    className="context-legend-row context-legend-aux"
-                    title={`Reasoning (output, not counted toward input context): ${formatTokenCount(tokens.reasoning)}`}
-                  >
-                    <span className="context-legend-dot" style={{ background: "var(--vscode-charts-orange, #e07b00)" }} />
-                    <span className="context-legend-label">Reasoning (output)</span>
-                    <span className="context-legend-value">{formatTokenCount(tokens.reasoning)}</span>
-                    <span className="context-legend-pct" aria-hidden="true">—</span>
-                  </li>
-                )}
-              </ul>
+                  )}
+                </ul>
+              )}
             </>
           ) : (
             <div className="context-usage-label">{formatTokenCount(used)} tokens</div>

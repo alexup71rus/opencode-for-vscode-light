@@ -362,14 +362,74 @@
   background: color-mix(in srgb, var(--vscode-foreground, #888) 15%, transparent);
 }
 
+.context-bar-wrap {
+  position: relative;
+}
+
 .context-bar-seg {
   height: 100%;
   min-width: 0;
   transition: width var(--opencode-ease);
+  cursor: help;
 }
 
 .context-bar-seg:hover {
   filter: brightness(1.15);
+}
+
+.context-seg-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 6px 9px;
+  background: var(--vscode-editorWidget-background, #1e1e1e);
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.context-seg-tooltip-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.context-seg-tooltip-row {
+  opacity: 0.8;
+}
+
+.context-seg-tooltip-row:last-child {
+  opacity: 0.6;
+}
+
+.context-legend-toggle-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 2px;
+}
+
+.context-legend-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--vscode-textLink-foreground, currentColor);
+  opacity: 0.75;
+  transition: opacity var(--opencode-ease);
+}
+
+.context-legend-toggle:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 .context-legend {

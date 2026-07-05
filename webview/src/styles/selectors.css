@@ -72,11 +72,6 @@
   color: var(--vscode-textLink-foreground, currentColor);
 }
 
-.variant-selector-icon {
-  font-size: 11px;
-  line-height: 1;
-}
-
 .variant-selector-label {
   text-transform: capitalize;
   white-space: nowrap;
