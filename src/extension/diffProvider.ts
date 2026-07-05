@@ -48,13 +48,51 @@ function extensionFor(absPath: string): string {
 }
 
 /**
+ * Reconstruct the "before this turn" content of a file the agent changed,
+ * alongside its current on-disk content ("after"). Pure: no VS Code commands,
+ * no provider mutation — used both by the native diff path and the webview
+ * modal path.
+ *
+ * Returns `{ error }` if the file can't be read (missing/deleted). For a
+ * non-new file whose patches no longer match the current content, `before`
+ * may equal `after` — callers decide how to surface that.
+ */
+export type ReconstructedDiff =
+  | { before: string; after: string; label: string }
+  | { error: string };
+
+export async function reconstructFileDiff(
+  filePath: string,
+  edits: EditPatch[],
+  isNewFile: boolean,
+  workdir: string,
+): Promise<ReconstructedDiff> {
+  const abs = resolveAbs(filePath, workdir);
+  try {
+    const after = await readFile(abs, "utf8");
+    let before = after;
+    if (isNewFile) {
+      before = "";
+    } else {
+      // Reverse-apply each patch: newStr -> oldStr. Skip patches whose newStr
+      // is no longer present (file changed since) so we don't corrupt content.
+      for (const p of edits) {
+        if (p.newStr && before.includes(p.newStr)) {
+          before = before.replace(p.newStr, p.oldStr);
+        }
+      }
+    }
+    const label = `${path.basename(abs)} · agent changes`;
+    return { before, after, label };
+  } catch {
+    return { error: `File not available: ${filePath}` };
+  }
+}
+
+/**
  * Open a native VS Code diff for a file the agent changed: the left side is the
  * reconstructed "before this turn" content, the right side is the real file.
- *
- * Because edits have already been applied, the real file currently holds the
- * `newStr` of each patch. We reverse-apply them (newStr → oldStr) on top of the
- * current file content to recover the pre-turn version. For new files the
- * "before" is empty.
+ * Delegates reconstruction to `reconstructFileDiff`.
  */
 export async function openFileDiff(
   provider: DiffDocumentProvider,
@@ -66,10 +104,8 @@ export async function openFileDiff(
   const abs = resolveAbs(filePath, workdir);
   const fileUri = vscode.Uri.file(abs);
 
-  let current = "";
-  try {
-    current = await readFile(abs, "utf8");
-  } catch {
+  const r = await reconstructFileDiff(filePath, edits, isNewFile, workdir);
+  if ("error" in r) {
     // File gone (or never written here) — fall back to opening it directly.
     await vscode.commands.executeCommand("vscode.open", fileUri, {
       viewColumn: vscode.ViewColumn.Beside,
@@ -77,22 +113,11 @@ export async function openFileDiff(
     return;
   }
 
-  let before = current;
-  if (isNewFile) {
-    before = "";
-  } else {
-    // Reverse-apply each patch: newStr → oldStr. Skip patches whose newStr is
-    // no longer present (file changed since) so we don't silently corrupt.
-    for (const p of edits) {
-      if (p.newStr && before.includes(p.newStr)) {
-        before = before.replace(p.newStr, p.oldStr);
-      }
-    }
-  }
+  const { before, after, label } = r;
 
   // No reconstruction happened and not a new file → nothing to show as a diff;
   // just open the file.
-  if (!isNewFile && before === current) {
+  if (!isNewFile && before === after) {
     await vscode.commands.executeCommand("vscode.open", fileUri, {
       viewColumn: vscode.ViewColumn.Beside,
     });
@@ -107,7 +132,6 @@ export async function openFileDiff(
   });
   provider.set(proposalUri, before);
 
-  const label = `${path.basename(abs)} · agent changes`;
   await vscode.commands.executeCommand("vscode.diff", proposalUri, fileUri, label, {
     preview: false,
     viewColumn: vscode.ViewColumn.Beside,

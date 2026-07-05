@@ -11,6 +11,7 @@ import { playCompleteSound, playAttentionSound } from "./utils/sound";
 import { InspectPanel } from "./components/InspectPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { HelpModal } from "./components/HelpModal";
+import { FileDiffModal } from "./components/FileDiffModal";
 import { Logo } from "./components/Logo";
 import { RecentSessionsPanel } from "./components/RecentSessionsPanel";
 
@@ -197,6 +198,10 @@ export default function App(): React.ReactElement {
         }
         if (useStore.getState().helpOpen) {
           setHelpOpen(false);
+          return;
+        }
+        if (useStore.getState().diffModal) {
+          useStore.getState().closeFileDiffModal();
           return;
         }
         const active = useStore.getState().activeSessionId;
@@ -461,6 +466,7 @@ export default function App(): React.ReactElement {
 
       <SettingsPanel />
       <HelpModal />
+      <FileDiffModal />
     </div>
   );
 }

@@ -520,26 +520,37 @@ export const MessageBubble = memo(function MessageBubble({
               </span>
               <div className="changed-files-chips">
                 {changedFiles.map((cf) => (
-                  <button
-                    key={cf.filePath}
-                    className="changed-file-chip"
-                    title={cf.filePath}
-                    onClick={() =>
-                      postMessage({
-                        type: "openFileDiff",
-                        filePath: cf.filePath,
-                        edits: cf.edits,
-                        isNewFile: cf.isNewFile,
-                      })
-                    }
-                  >
-                    <span className={`change-status change-status-${cf.isNewFile ? "added" : "modified"}`} />
-                    <span className="changed-file-name">{basename(cf.filePath)}</span>
-                    <span className="changed-file-delta">
-                      {cf.additions > 0 && <span className="delta-add">+{cf.additions}</span>}
-                      {cf.deletions > 0 && <span className="delta-del">-{cf.deletions}</span>}
-                    </span>
-                  </button>
+                  <div key={cf.filePath} className="changed-file-chip" title={cf.filePath}>
+                    <button
+                      className="changed-file-chip-main"
+                      onClick={() =>
+                        postMessage({
+                          type: "openFileDiff",
+                          filePath: cf.filePath,
+                          edits: cf.edits,
+                          isNewFile: cf.isNewFile,
+                        })
+                      }
+                    >
+                      <span className={`change-status change-status-${cf.isNewFile ? "added" : "modified"}`} />
+                      <span className="changed-file-name">{basename(cf.filePath)}</span>
+                      <span className="changed-file-delta">
+                        {cf.additions > 0 && <span className="delta-add">+{cf.additions}</span>}
+                        {cf.deletions > 0 && <span className="delta-del">-{cf.deletions}</span>}
+                      </span>
+                    </button>
+                    <button
+                      className="changed-file-chip-eye"
+                      title="Preview diff in panel"
+                      aria-label={`Preview ${basename(cf.filePath)} diff in panel`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useStore.getState().openFileDiffModal(cf.filePath, cf.edits, cf.isNewFile);
+                      }}
+                    >
+                      <span className="codicon codicon-eye" aria-hidden="true" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

@@ -46,6 +46,7 @@ export type ExtensionToWebview =
   | { type: "lspStatus"; servers: LspStatusInfo[] }
   | { type: "stats"; totalCost: number; totalTokens: { input: number; output: number; reasoning: number } }
   | { type: "context"; activeFile: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
+  | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "error"; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 
@@ -64,6 +65,7 @@ export type WebviewToExtension =
   | { type: "selectAgent"; agent: string | null }
   | { type: "refreshAgents" }
   | { type: "openFileDiff"; filePath: string; edits: { oldStr: string; newStr: string }[]; isNewFile: boolean }
+  | { type: "getFileDiffContent"; filePath: string; edits: { oldStr: string; newStr: string }[]; isNewFile: boolean }
   | { type: "getContext" }
   | { type: "refreshSessions" }
   | { type: "refreshModels" }

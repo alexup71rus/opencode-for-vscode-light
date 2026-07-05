@@ -16,6 +16,7 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
   const messages = useStore((s) => s.messagesBySession[sessionId] ?? []);
   const baseline = useStore((s) => s.changesBaseline[sessionId]);
   const applyChanges = useStore((s) => s.applyChanges);
+  const openFileDiffModal = useStore((s) => s.openFileDiffModal);
   const [open, setOpen] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -74,28 +75,39 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
         <div className="changes-list">
           {rows.length === 0 && <div className="empty-hint">No file changes</div>}
           {rows.map((row) => (
-            <button
-              key={row.filePath}
-              className="change-row"
-              title={row.filePath}
-              onClick={() =>
-                postMessage({
-                  type: "openFileDiff",
-                  filePath: row.filePath,
-                  edits: row.edits,
-                  isNewFile: row.isNewFile,
-                })
-              }
-            >
-              <span className={`change-status change-status-${row.isNewFile ? "added" : "modified"}`} />
-              <span className="change-delta">
-                {row.additions > 0 && <span className="delta-add">+{row.additions}</span>}
-                {row.deletions > 0 && <span className="delta-del">-{row.deletions}</span>}
-              </span>
-              <span className="change-file" title={row.filePath}>
-                {basename(row.filePath)}
-              </span>
-            </button>
+            <div key={row.filePath} className="change-row" title={row.filePath}>
+              <button
+                className="change-main"
+                onClick={() =>
+                  postMessage({
+                    type: "openFileDiff",
+                    filePath: row.filePath,
+                    edits: row.edits,
+                    isNewFile: row.isNewFile,
+                  })
+                }
+              >
+                <span className={`change-status change-status-${row.isNewFile ? "added" : "modified"}`} />
+                <span className="change-delta">
+                  {row.additions > 0 && <span className="delta-add">+{row.additions}</span>}
+                  {row.deletions > 0 && <span className="delta-del">-{row.deletions}</span>}
+                </span>
+                <span className="change-file" title={row.filePath}>
+                  {basename(row.filePath)}
+                </span>
+              </button>
+              <button
+                className="change-modal-btn"
+                title="Preview diff in panel"
+                aria-label={`Preview ${basename(row.filePath)} diff in panel`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openFileDiffModal(row.filePath, row.edits, row.isNewFile);
+                }}
+              >
+                <span className="codicon codicon-eye" aria-hidden="true" />
+              </button>
+            </div>
           ))}
         </div>
       )}

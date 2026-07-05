@@ -11,7 +11,7 @@ import type { AgentService } from "../services/agentService";
 import type { StatsService } from "../services/statsService";
 import type { EventStream } from "../bridge/eventStream";
 import { ContextProvider } from "./contextProvider";
-import { openFileDiff, type DiffDocumentProvider } from "./diffProvider";
+import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
 
 import type {
   ExtensionToWebview,
@@ -280,6 +280,45 @@ export class WebviewPanelManager {
           );
         } catch (err) {
           this.reportError(err, "open file diff");
+        }
+        break;
+      }
+      case "getFileDiffContent": {
+        try {
+          const r = await reconstructFileDiff(
+            msg.filePath,
+            msg.edits,
+            msg.isNewFile,
+            this.client.workdirPath,
+          );
+          if ("error" in r) {
+            this.postMessage({
+              type: "fileDiffContent",
+              filePath: msg.filePath,
+              before: "",
+              after: "",
+              label: "",
+              error: r.error,
+            });
+          } else {
+            this.postMessage({
+              type: "fileDiffContent",
+              filePath: msg.filePath,
+              before: r.before,
+              after: r.after,
+              label: r.label,
+            });
+          }
+        } catch (err) {
+          this.reportError(err, "get file diff content");
+          this.postMessage({
+            type: "fileDiffContent",
+            filePath: msg.filePath,
+            before: "",
+            after: "",
+            label: "",
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
         break;
       }

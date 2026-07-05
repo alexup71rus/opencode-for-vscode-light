@@ -21,6 +21,7 @@ import type {
   MessageAttachment,
   QuestionRequest,
 } from "../api/types";
+import { postMessage } from "../api/vscodeApi";
 
 export interface Settings {
   systemPrompt: string;
@@ -40,6 +41,12 @@ export interface QueuedMessage {
   context?: AttachedContext;
   options?: SendMessageOptions;
   attachments?: MessageAttachment[];
+}
+
+interface DiffModalBase {
+  filePath: string;
+  edits: { oldStr: string; newStr: string }[];
+  isNewFile: boolean;
 }
 
 export interface AppState {
@@ -101,12 +108,19 @@ export interface AppState {
   recentPanelHidden: boolean;
   changesBaseline: Record<string, string>;
   queuedMessages: QueuedMessage[];
+  diffModal:
+    | null
+    | (DiffModalBase & { status: "loading" })
+    | (DiffModalBase & { status: "ready"; label: string; before: string; after: string })
+    | (DiffModalBase & { status: "error"; message: string });
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
   setRecentPanelHidden: (hidden: boolean) => void;
   applyChanges: (sessionId: string, messageId: string) => void;
+  openFileDiffModal: (filePath: string, edits: { oldStr: string; newStr: string }[], isNewFile: boolean) => void;
+  closeFileDiffModal: () => void;
 
   handleMessage: (msg: ExtensionToWebview) => void;
   setSelectedModel: (model: ModelSelection) => void;
@@ -211,6 +225,7 @@ const initialState = {
   totalTokens: { input: 0, output: 0, reasoning: 0 },
   sessionStatus: {} as Record<string, SessionStatusInfo>,
   queuedMessages: [] as QueuedMessage[],
+  diffModal: null as AppState["diffModal"],
   changesBaseline: {} as Record<string, string>,
 };
 
@@ -312,6 +327,12 @@ export const useStore = create<AppState>((set, get) => ({
     savePersistedUi({ changesBaseline: next });
     set({ changesBaseline: next });
   },
+  openFileDiffModal: (filePath, edits, isNewFile) => {
+    set({ diffModal: { status: "loading", filePath, edits, isNewFile } });
+    postMessage({ type: "getFileDiffContent", filePath, edits, isNewFile });
+  },
+
+  closeFileDiffModal: () => set({ diffModal: null }),
   enqueueMessage: (m, priority) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     set((s) => ({
@@ -541,6 +562,38 @@ export const useStore = create<AppState>((set, get) => ({
           selection: msg.selection,
         });
         break;
+
+      case "fileDiffContent": {
+        set((s) => {
+          const cur = s.diffModal;
+          // Only apply if we're currently loading this exact file — a late
+          // response arriving after the user closed the modal must not reopen it.
+          if (!cur || cur.status !== "loading" || cur.filePath !== msg.filePath) return s;
+          if (msg.error) {
+            return {
+              diffModal: {
+                status: "error",
+                filePath: msg.filePath,
+                edits: cur.edits,
+                isNewFile: cur.isNewFile,
+                message: msg.error,
+              },
+            };
+          }
+          return {
+            diffModal: {
+              status: "ready",
+              filePath: msg.filePath,
+              edits: cur.edits,
+              isNewFile: cur.isNewFile,
+              label: msg.label,
+              before: msg.before,
+              after: msg.after,
+            },
+          };
+        });
+        break;
+      }
 
       case "error":
         set({ errorMessage: msg.message });
