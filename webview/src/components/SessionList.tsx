@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
-import { formatCost, formatTokenCount, totalTokens, dayBucket } from "../utils";
+import { dayBucket } from "../utils";
 import type { SessionWithMeta } from "../api/types";
 
 export function SessionList(): React.ReactElement {
@@ -128,7 +128,6 @@ export function SessionList(): React.ReactElement {
 
   const renderSession = (ses: SessionWithMeta, depth = 0) => {
     const isActive = ses.id === activeSessionId;
-    const tokens = totalTokens(ses.tokens);
     const isConfirming = pendingDelete === ses.id;
     const isEditing = editingId === ses.id;
     const isPinned = pinnedSet.has(ses.id);
@@ -201,19 +200,6 @@ export function SessionList(): React.ReactElement {
               {childDepth > 0 && ses.agent && <span className="session-child-agent">{ses.agent}</span>}
             </div>
           )}
-          <div className="session-item-meta">
-            {ses.cost !== undefined && ses.cost > 0 && (
-              <span className="session-meta-cost">{formatCost(ses.cost)}</span>
-            )}
-            {tokens > 0 && (
-              <>
-                {ses.cost !== undefined && ses.cost > 0 && (
-                  <span className="session-meta-dot">·</span>
-                )}
-                <span className="session-meta-tokens">{formatTokenCount(tokens)}</span>
-              </>
-            )}
-          </div>
         </div>
         {isConfirming ? (
           <div className="session-confirm" onClick={(e) => e.stopPropagation()}>

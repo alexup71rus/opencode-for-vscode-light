@@ -92,9 +92,9 @@ export default function App(): React.ReactElement {
         return agents.find((a) => a.name === agentName)?.name ?? agentName ?? "Subagent";
       })()
     : "";
-  const headerTitle = activeIsChild
-    ? `${parentSession!.title || "Untitled"} - ${childAgentLabel}`
-    : activeSession?.title;
+  const parentTitle = parentSession?.title || "Untitled";
+  const childTitle = activeSession?.title || "Untitled";
+  const headerTitle = activeIsChild ? childTitle : activeSession?.title;
 
   const dragRef = useRef<null | (() => void)>(null);
 
@@ -268,7 +268,24 @@ export default function App(): React.ReactElement {
           <span className="app-title-mark" aria-hidden="true">
             <Logo size={14} />
           </span>
-          <span className="app-title-text">{headerTitle || "OCVS"}</span>
+          {activeIsChild ? (
+            <>
+              <button
+                className="app-title-crumb"
+                title={`Back to ${parentTitle}`}
+                onClick={() => postMessage({ type: "openSession", sessionId: parentSession!.id })}
+              >
+                {parentTitle}
+              </button>
+              <span className="app-title-sep" aria-hidden="true">›</span>
+              <span className="app-title-text">{childTitle}</span>
+              {childAgentLabel && (
+                <span className="app-title-badge" title={`Subagent: ${childAgentLabel}`}>{childAgentLabel}</span>
+              )}
+            </>
+          ) : (
+            <span className="app-title-text">{headerTitle || "OCVS"}</span>
+          )}
         </div>
         <div className="header-right">
           <button
@@ -386,18 +403,7 @@ export default function App(): React.ReactElement {
           ) : activeSessionId ? (
             <>
               <ChatView sessionId={activeSessionId} />
-              {activeIsChild ? (
-                <div className="subagent-back-bar">
-                  <button
-                    className="subagent-back-btn"
-                    title="Back to main chat"
-                    onClick={() => postMessage({ type: "openSession", sessionId: parentSession!.id })}
-                  >
-                    <span className="subagent-back-arrow" aria-hidden="true">←</span>
-                    <span>Back to <strong>{parentSession!.title || "Untitled"}</strong></span>
-                  </button>
-                </div>
-              ) : (
+              {activeIsChild ? null : (
                 <>
                   <QueueBar />
                   <ChatInput sessionId={activeSessionId} />

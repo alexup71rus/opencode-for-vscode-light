@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { ModelSelector } from "./ModelSelector";
+import { VariantSelector } from "./VariantSelector";
 import { AgentSelector } from "./AgentSelector";
 import { ContextChips } from "./ContextChips";
 import { formatCost, formatTokenCount } from "../utils";
@@ -51,6 +52,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const selectedAgent = useStore((s) => s.selectedAgent);
   const fileResults = useStore((s) => s.fileResults);
   const enqueueMessage = useStore((s) => s.enqueueMessage);
+  const sendOnEnter = useStore((s) => s.settings.sendOnEnter);
   const isBusy = status?.type === "busy";
   const hasQuestion = useStore(
     (s) => s.pendingQuestions.some((q) => q.sessionID === sessionId),
@@ -314,13 +316,29 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key === "Enter") {
       e.preventDefault();
       send();
       return;
     }
 
-    if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (
+      sendOnEnter &&
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !slashVisible &&
+      !mentionVisible
+    ) {
+      e.preventDefault();
+      send();
+      return;
+    }
+
+    if (e.key === "Tab" && !mod && !e.altKey) {
       if (slashVisible) {
         const cmd = filteredCommands[slashSel];
         if (cmd) {
@@ -525,7 +543,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             <textarea
               ref={textareaRef}
               className="chat-input-textarea"
-              placeholder={isBusy ? "Agent is working…" : "Ask anything… (⌘/Ctrl+Enter to send)"}
+              placeholder={isBusy ? "Agent is working…" : sendOnEnter ? "Ask anything… (Enter to send, Shift+Enter for newline)" : "Ask anything… (⌘/Ctrl+Enter to send)"}
               value={text}
               rows={1}
               disabled={hasQuestion}
@@ -542,6 +560,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
           <div className="chat-input-actions">
             <AgentSelector compact />
             <ModelSelector compact />
+            <VariantSelector />
             {isBusy ? (
               text.trim() ? (
                 <>

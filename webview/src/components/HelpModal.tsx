@@ -6,19 +6,31 @@ interface Shortcut {
   action: string;
 }
 
-const SHORTCUTS: Shortcut[] = [
-  { keys: "⌘/Ctrl + Enter", action: "Send message" },
-  { keys: "⌘/Ctrl + L", action: "Focus input" },
-  { keys: "⌘/Ctrl + K", action: "New chat" },
-  { keys: "⌘/Ctrl + Shift + S", action: "Toggle sessions sidebar" },
-  { keys: "⌘/Ctrl + ↑ / ↓", action: "Switch session" },
-  { keys: "Shift + ?", action: "Open this help" },
-  { keys: "Esc", action: "Close dialogs; interrupt generation if not typing" },
-];
-
 export function HelpModal(): React.ReactElement | null {
   const open = useStore((s) => s.helpOpen);
   const setOpen = useStore((s) => s.setHelpOpen);
+  const sendOnEnter = useStore((s) => s.settings.sendOnEnter);
+
+  const shortcuts: Shortcut[] = sendOnEnter
+    ? [
+        { keys: "Enter", action: "Send message" },
+        { keys: "Shift + Enter", action: "Insert newline" },
+        { keys: "⌘/Ctrl + Enter", action: "Send message" },
+      ]
+    : [
+        { keys: "⌘/Ctrl + Enter", action: "Send message" },
+        { keys: "Enter", action: "Insert newline" },
+      ];
+
+  const SHORTCUTS: Shortcut[] = [
+    ...shortcuts,
+    { keys: "⌘/Ctrl + L", action: "Focus input" },
+    { keys: "⌘/Ctrl + K", action: "New chat" },
+    { keys: "⌘/Ctrl + Shift + S", action: "Toggle sessions sidebar" },
+    { keys: "⌘/Ctrl + ↑ / ↓", action: "Switch session" },
+    { keys: "Shift + ?", action: "Open this help" },
+    { keys: "Esc", action: "Close dialogs; interrupt generation if not typing" },
+  ];
 
   useEffect(() => {
     if (!open) return;

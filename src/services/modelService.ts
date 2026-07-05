@@ -2,14 +2,24 @@ import { EventEmitter } from "events";
 import type { OpenCodeClient } from "../bridge/openCodeClient";
 import type { ProviderInfo, ProviderModelInfo, ModelSelection } from "../bridge/types";
 
+interface RawCapabilities {
+  reasoning?: boolean;
+  attachment?: boolean;
+  toolcall?: boolean;
+  temperature?: boolean;
+}
+
 interface RawModel {
   id?: string;
   name?: string;
   reasoning?: boolean;
   attachment?: boolean;
   tool_call?: boolean;
+  toolcall?: boolean;
+  capabilities?: RawCapabilities;
   cost?: { input: number; output: number };
   limit?: { context: number; output: number };
+  variants?: Record<string, unknown>;
 }
 
 interface RawProvider {
@@ -126,18 +136,26 @@ export class ModelService extends EventEmitter {
   ): ProviderModelInfo[] {
     if (!models) return [];
     return Object.entries(models).map(
-      ([modelID, model]): ProviderModelInfo => ({
-        providerID,
-        modelID,
-        name: model.name ?? modelID,
-        reasoning: Boolean(model.reasoning),
-        attachment: Boolean(model.attachment),
-        toolCall: Boolean(model.tool_call),
-        cost: model.cost ? { input: model.cost.input, output: model.cost.output } : undefined,
-        limit: model.limit
-          ? { context: model.limit.context, output: model.limit.output }
-          : { context: 0, output: 0 },
-      }),
+      ([modelID, model]): ProviderModelInfo => {
+        const caps = model.capabilities;
+        const variantsMap = model.variants;
+        const variantKeys = variantsMap && typeof variantsMap === "object"
+          ? Object.keys(variantsMap)
+          : undefined;
+        return {
+          providerID,
+          modelID,
+          name: model.name ?? modelID,
+          reasoning: Boolean(caps?.reasoning ?? model.reasoning),
+          attachment: Boolean(caps?.attachment ?? model.attachment),
+          toolCall: Boolean(caps?.toolcall ?? model.tool_call),
+          cost: model.cost ? { input: model.cost.input, output: model.cost.output } : undefined,
+          limit: model.limit
+            ? { context: model.limit.context, output: model.limit.output }
+            : { context: 0, output: 0 },
+          variants: variantKeys && variantKeys.length > 0 ? variantKeys : undefined,
+        };
+      },
     );
   }
 }

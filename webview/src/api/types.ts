@@ -1,6 +1,7 @@
 export interface ModelSelection {
   providerID: string;
   modelID: string;
+  variant?: string;
 }
 
 export interface AgentInfo {
@@ -62,6 +63,7 @@ export interface ProviderModelInfo {
   reasoning: boolean;
   attachment: boolean;
   toolCall: boolean;
+  variants?: string[];
   cost?: { input: number; output: number };
   limit: { context: number; output: number };
 }

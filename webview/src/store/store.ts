@@ -31,6 +31,7 @@ export interface Settings {
   autoExpandEdit: boolean;
   autoExpandError: boolean;
   soundOnComplete: boolean;
+  sendOnEnter: boolean;
 }
 
 export interface QueuedMessage {
@@ -192,7 +193,7 @@ const initialState = {
   todosBySession: {} as Record<string, Todo[]>,
   mcpStatus: {} as Record<string, McpServerStatus>,
   lspStatus: [] as LspStatusInfo[],
-  settings: { systemPrompt: "", enabledTools: {}, autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: false, autoExpandError: false, soundOnComplete: true },
+  settings: { systemPrompt: "", enabledTools: {}, autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: false, autoExpandError: false, soundOnComplete: true, sendOnEnter: true },
   pinnedSessions: [] as string[],
   sessionSearch: "",
   collapsedProviders: [] as string[],
@@ -259,6 +260,7 @@ export const useStore = create<AppState>((set, get) => ({
     autoExpandEdit: persistedUi.settings?.autoExpandEdit ?? false,
     autoExpandError: persistedUi.settings?.autoExpandError ?? true,
     soundOnComplete: persistedUi.settings?.soundOnComplete ?? true,
+    sendOnEnter: persistedUi.settings?.sendOnEnter ?? true,
   },
   pinnedSessions: persistedUi.pinnedSessions ?? [],
   hiddenModels: persistedUi.hiddenModels ?? [],
@@ -419,7 +421,15 @@ export const useStore = create<AppState>((set, get) => ({
                 p.id === s.selectedModel!.providerID &&
                 p.models.some((m) => m.modelID === s.selectedModel!.modelID),
             );
-          const next = stillValid ? s.selectedModel : msg.defaultModel;
+          let next = stillValid ? s.selectedModel : msg.defaultModel;
+          // Drop a stale variant if the model no longer advertises it.
+          if (next?.variant) {
+            const provider = msg.providers.find((p) => p.id === next!.providerID);
+            const model = provider?.models.find((m) => m.modelID === next!.modelID);
+            if (!model?.variants?.includes(next.variant)) {
+              next = { providerID: next.providerID, modelID: next.modelID };
+            }
+          }
           savePersistedUi({ selectedModel: next ?? null });
           return {
             providers: msg.providers,

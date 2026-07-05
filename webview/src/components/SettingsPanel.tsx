@@ -40,6 +40,7 @@ export function SettingsPanel(): React.ReactElement | null {
   const [draftAutoExpandEdit, setDraftAutoExpandEdit] = useState(settings.autoExpandEdit);
   const [draftAutoExpandError, setDraftAutoExpandError] = useState(settings.autoExpandError);
   const [draftSoundOnComplete, setDraftSoundOnComplete] = useState(settings.soundOnComplete);
+  const [draftSendOnEnter, setDraftSendOnEnter] = useState(settings.sendOnEnter);
   const [tab, setTab] = useState<Tab>("general");
 
   useEffect(() => {
@@ -55,8 +56,9 @@ export function SettingsPanel(): React.ReactElement | null {
       setDraftAutoExpandEdit(settings.autoExpandEdit);
       setDraftAutoExpandError(settings.autoExpandError);
       setDraftSoundOnComplete(settings.soundOnComplete);
+      setDraftSendOnEnter(settings.sendOnEnter);
     }
-  }, [open, settings.systemPrompt, settings.enabledTools, settings.autoApprove, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, selectedModel, selectedAgent]);
+  }, [open, settings.systemPrompt, settings.enabledTools, settings.autoApprove, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
 
   useEffect(() => {
     if (!open) return;
@@ -99,10 +101,15 @@ export function SettingsPanel(): React.ReactElement | null {
   if (!open) return null;
 
   const save = () => {
-    updateSettings({ systemPrompt, enabledTools, autoApprove: draftAutoApprove, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete });
-    if (draftModel && (!selectedModel || modelKey(draftModel) !== modelKey(selectedModel))) {
-      setSelectedModel(draftModel);
-      postMessage({ type: "selectModel", model: draftModel });
+    updateSettings({ systemPrompt, enabledTools, autoApprove: draftAutoApprove, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter });
+    if (draftModel) {
+      const sameKey =
+        !!selectedModel && modelKey(draftModel) === modelKey(selectedModel);
+      const sameVariant = !!selectedModel && selectedModel.variant === draftModel.variant;
+      if (!sameKey || !sameVariant) {
+        setSelectedModel(draftModel);
+        postMessage({ type: "selectModel", model: draftModel });
+      }
     }
     if (draftAgent !== selectedAgent) {
       setSelectedAgent(draftAgent);
@@ -120,6 +127,19 @@ export function SettingsPanel(): React.ReactElement | null {
     const idx = value.indexOf("/");
     if (idx <= 0) return;
     setDraftModel({ providerID: value.slice(0, idx), modelID: value.slice(idx + 1) });
+  };
+
+  const onVariantChange = (value: string) => {
+    setDraftModel((cur) => {
+      if (!cur) return cur;
+      if (!value) {
+        if (!cur.variant) return cur;
+        const next = { ...cur };
+        delete next.variant;
+        return next;
+      }
+      return { ...cur, variant: value };
+    });
   };
 
   const onAgentChange = (value: string) => {
@@ -140,6 +160,12 @@ export function SettingsPanel(): React.ReactElement | null {
     (n, p) => n + p.models.filter((m) => !hiddenSet.has(modelKey(m))).length,
     0,
   );
+  const draftVariants = useMemo<string[] | null>(() => {
+    if (!draftModel) return null;
+    const p = connectedProviders.find((pr) => pr.id === draftModel.providerID);
+    const m = p?.models.find((mm) => mm.modelID === draftModel.modelID);
+    return m?.variants ?? null;
+  }, [draftModel, connectedProviders]);
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "general", label: "General" },
@@ -224,6 +250,18 @@ export function SettingsPanel(): React.ReactElement | null {
               </section>
 
               <section className="settings-section">
+                <div className="settings-section-title">Input</div>
+                <div className="settings-field">
+                  <ToggleRow
+                    checked={draftSendOnEnter}
+                    onChange={setDraftSendOnEnter}
+                    title="Send on Enter"
+                    hint="On: Enter sends the message, Shift+Enter inserts a newline. Off: ⌘/Ctrl+Enter sends, Enter inserts a newline. ⌘/Ctrl+Enter always sends regardless of this setting."
+                  />
+                </div>
+              </section>
+
+              <section className="settings-section">
                 <div className="settings-section-title">Feedback</div>
                 <div className="settings-field">
                   <ToggleRow
@@ -289,10 +327,33 @@ export function SettingsPanel(): React.ReactElement | null {
                       )}
                   </select>
                   <span className="settings-hint">Server default: {serverDefault}</span>
+                  {draftVariants && draftVariants.length > 0 && (
+                    <>
+                      <label className="settings-label" htmlFor="settings-variant">
+                        Thinking level (variant)
+                      </label>
+                      <select
+                        id="settings-variant"
+                        className="settings-select"
+                        value={draftModel?.variant ?? ""}
+                        onChange={(e) => onVariantChange(e.target.value)}
+                      >
+                        <option value="">Default (server pick)</option>
+                        {draftVariants.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="settings-hint">
+                        Variants let the same model run with different reasoning effort
+                        (e.g. low / medium / high). Picked alongside the model on every send.
+                      </span>
+                    </>
+                  )}
                   <span className="settings-hint">
                     Models tagged <span className="badge badge-reasoning">R</span> support
-                    reasoning/thinking. Thinking effort is set per model/agent in opencode.json and
-                    is not a runtime toggle here.
+                    reasoning/thinking.
                   </span>
                 </div>
 

@@ -10,7 +10,8 @@ interface QuestionOverlayProps {
 /**
  * Shows pending agent questions as a block that overlaps the composer, so it is
  * clear the user must answer (free-form is always available) rather than send a
- * normal message. Backed by GET /question polling + POST .../reply|/reject.
+ * normal message. One question visible at a time, navigated by dots/arrows.
+ * Backed by GET /question polling + POST .../reply|/reject.
  */
 export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.ReactElement | null {
   const requests = useStore(
@@ -20,6 +21,8 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
   const [selection, setSelection] = useState<Record<string, string[]>>({});
   // custom[`${requestId}:${qi}`] = free-form typed answer (overrides selection)
   const [custom, setCustom] = useState<Record<string, string>>({});
+  // current question index per request id
+  const [pos, setPos] = useState<Record<string, number>>({});
 
   if (requests.length === 0) return null;
 
@@ -63,61 +66,67 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
       <div className="question-overlay-inner">
         {requests.map((req) => {
           const allAnswered = req.questions.every((_, qi) => isAnswered(req, qi));
+          const total = req.questions.length;
+          const current = Math.min(pos[req.id] ?? 0, total - 1);
+          const setIdx = (next: number) =>
+            setPos((p) => ({ ...p, [req.id]: Math.max(0, Math.min(total - 1, next)) }));
+          const q = req.questions[current];
+          const k = key(req.id, current);
+          const sel = selection[k] ?? [];
           return (
             <div className="question-request" key={req.id}>
               <div className="question-request-head">
                 <span className="question-request-icon" aria-hidden="true">?</span>
                 <span className="question-request-title">Agent needs your input</span>
               </div>
-              {req.questions.map((q, qi) => {
-                const k = key(req.id, qi);
-                const sel = selection[k] ?? [];
-                return (
-                  <div className="question-item" key={qi}>
-                    <div className="question-header">{q.header}</div>
-                    <div className="question-text">{q.question}</div>
-                    <div className="question-options">
-                      {q.options.map((opt) => {
-                        const active = sel.includes(opt.label);
-                        return (
-                          <button
-                            key={opt.label}
-                            type="button"
-                            className={`question-option ${active ? "selected" : ""}`}
-                            title={opt.description}
-                            onClick={() => toggle(req.id, qi, opt.label, q.multiple)}
-                          >
-                            <span className="question-option-mark" aria-hidden="true">
-                              {q.multiple ? (active ? "☒" : "☐") : active ? "●" : "○"}
-                            </span>
-                            <span className="question-option-body">
-                              <span className="question-option-label">{opt.label}</span>
-                              {opt.description && (
-                                <span className="question-option-desc">{opt.description}</span>
-                              )}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {customAllowed(q.custom) && (
-                      <textarea
-                        className="question-custom"
-                        rows={2}
-                        placeholder="Or type your own answer…"
-                        value={custom[k] ?? ""}
-                        onChange={(e) => setCustom((c) => ({ ...c, [k]: e.target.value }))}
-                        onKeyDown={(e) => {
-                          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                            e.preventDefault();
-                            submit(req);
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
+
+              {total > 1 && (
+                <QuestionTabs
+                  total={total}
+                  current={current}
+                  answered={Array.from({ length: total }, (_, i) => isAnswered(req, i))}
+                  onSelect={setIdx}
+                />
+              )}
+
+              <QuestionBody
+                q={q}
+                sel={sel}
+                multiple={q.multiple}
+                customAllowed={customAllowed(q.custom)}
+                customValue={custom[k] ?? ""}
+                onToggle={(label) => toggle(req.id, current, label, q.multiple)}
+                onCustom={(v) => setCustom((c) => ({ ...c, [k]: v }))}
+                onNavKey={(dir) => setIdx(current + dir)}
+                onSubmit={() => submit(req)}
+              />
+
+              {total > 1 && (
+                <div className="question-nav">
+                  <button
+                    type="button"
+                    className="btn btn-xs"
+                    onClick={() => setIdx(current - 1)}
+                    disabled={current === 0}
+                    title="Previous question"
+                  >
+                    ←
+                  </button>
+                  <span className="question-nav-pos">
+                    {current + 1} / {total}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-xs"
+                    onClick={() => setIdx(current + 1)}
+                    disabled={current === total - 1}
+                    title="Next question"
+                  >
+                    →
+                  </button>
+                </div>
+              )}
+
               <div className="question-actions">
                 <button
                   className="btn btn-primary btn-sm"
@@ -135,6 +144,116 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
           );
         })}
       </div>
+    </div>
+  );
+}
+
+interface QuestionTabsProps {
+  total: number;
+  current: number;
+  answered: boolean[];
+  onSelect: (i: number) => void;
+}
+
+function QuestionTabs({ total, current, answered, onSelect }: QuestionTabsProps): React.ReactElement {
+  return (
+    <div className="question-tabs" role="tablist">
+      {Array.from({ length: total }, (_, i) => {
+        const isCurrent = i === current;
+        const isAnswered = answered[i];
+        return (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={isCurrent}
+            className={`question-tab ${isCurrent ? "current" : ""} ${isAnswered ? "done" : ""}`}
+            onClick={() => onSelect(i)}
+            title={`Question ${i + 1}${isAnswered ? " (answered)" : ""}`}
+          >
+            <span className="question-tab-dot" aria-hidden="true" />
+            <span className="question-tab-idx">{i + 1}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface QuestionBodyProps {
+  q: QuestionRequest["questions"][number];
+  sel: string[];
+  multiple?: boolean;
+  customAllowed: boolean;
+  customValue: string;
+  onToggle: (label: string) => void;
+  onCustom: (v: string) => void;
+  onNavKey: (dir: number) => void;
+  onSubmit: () => void;
+}
+
+function QuestionBody({
+  q, sel, multiple, customAllowed, customValue, onToggle, onCustom, onNavKey, onSubmit,
+}: QuestionBodyProps): React.ReactElement {
+  // Arrow-key navigation between questions when the custom textarea isn't focused
+  // and no option is being edited. Left/Right move between tabs; the textarea
+  // keeps its own caret behaviour.
+  const onCustomKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      onSubmit();
+      return;
+    }
+    if (e.key === "ArrowLeft" && e.shiftKey && e.altKey) {
+      e.preventDefault();
+      onNavKey(-1);
+      return;
+    }
+    if (e.key === "ArrowRight" && e.shiftKey && e.altKey) {
+      e.preventDefault();
+      onNavKey(1);
+      return;
+    }
+  };
+
+  return (
+    <div className="question-item">
+      <div className="question-header">{q.header}</div>
+      <div className="question-text">{q.question}</div>
+      <div className="question-options">
+        {q.options.map((opt) => {
+          const active = sel.includes(opt.label);
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              className={`question-option ${active ? "selected" : ""}`}
+              title={opt.description}
+              onClick={() => onToggle(opt.label)}
+            >
+              <span className="question-option-mark" aria-hidden="true">
+                {multiple ? (active ? "☒" : "☐") : active ? "●" : "○"}
+              </span>
+              <span className="question-option-body">
+                <span className="question-option-label">{opt.label}</span>
+                {opt.description && (
+                  <span className="question-option-desc">{opt.description}</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {customAllowed && (
+        <textarea
+          className="question-custom"
+          rows={2}
+          placeholder="Or type your own answer…"
+          value={customValue}
+          onChange={(e) => onCustom(e.target.value)}
+          onKeyDown={onCustomKey}
+        />
+      )}
     </div>
   );
 }
