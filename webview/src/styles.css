@@ -3678,7 +3678,8 @@ code {
 .settings-panel {
   max-width: 600px;
   align-self: flex-start;
-  margin-top: 8vh;
+  margin-top: 32px;
+  max-height: calc(100vh - 64px);
 }
 
 .settings-tabs {
