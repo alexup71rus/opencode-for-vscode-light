@@ -153,15 +153,12 @@ export class SessionService extends EventEmitter {
   }
 
   async sendMessage(
+    sessionId: string,
     text: string,
     context?: AttachedContext,
     options?: SendMessageOptions,
     attachments?: MessageAttachment[],
   ): Promise<void> {
-    if (!this.activeSessionId) {
-      throw new Error("No active session");
-    }
-    const sessionId = this.activeSessionId;
     const merged = this.mergeAttachments(this.contextToAttachments(context), attachments);
     await this.client.sendMessage(sessionId, text, options, merged);
   }
@@ -185,9 +182,8 @@ export class SessionService extends EventEmitter {
     return list.length > 0 ? list : undefined;
   }
 
-  async abortSession(): Promise<void> {
-    if (!this.activeSessionId) return;
-    await this.client.abortSession(this.activeSessionId);
+  async abortSession(sessionId: string): Promise<void> {
+    await this.client.abortSession(sessionId);
   }
 
   async editMessage(
@@ -235,17 +231,11 @@ export class SessionService extends EventEmitter {
     this.emit("sessionsChanged");
   }
 
-  async replyPermission(permissionId: string, decision: "once" | "always" | "reject"): Promise<void> {
-    let sessionId = this.activeSessionId;
-    if (!sessionId) {
-      for (const [sid, perms] of this.permissionsBySession) {
-        if (perms.some((p) => p.id === permissionId)) {
-          sessionId = sid;
-          break;
-        }
-      }
-    }
-    if (!sessionId) return;
+  async replyPermission(
+    sessionId: string,
+    permissionId: string,
+    decision: "once" | "always" | "reject",
+  ): Promise<void> {
     await this.client.replyPermission(sessionId, permissionId, decision);
   }
 

@@ -15,23 +15,26 @@ function FileIcon(): React.ReactElement {
 }
 
 export function ContextChips({ onRemove }: ContextChipsProps): React.ReactElement | null {
-  const activeFile = useStore((s) => s.activeFile);
+  const activeFilePath = useStore((s) => s.activeFilePath);
+  const activeFileName = useStore((s) => s.activeFileName);
   const selection = useStore((s) => s.selection);
 
-  if (!activeFile && !selection) return null;
+  if (!activeFilePath && !selection) return null;
+
+  const displayName = activeFileName ?? (activeFilePath ? basename(activeFilePath) : "");
 
   return (
     <div className="context-chips">
-      {activeFile && (
-        <span className="chip chip-file" title={activeFile}>
+      {activeFilePath && (
+        <span className="chip chip-file" title={activeFilePath}>
           <span className="chip-icon"><FileIcon /></span>
-          <span className="chip-label">{basename(activeFile)}</span>
+          <span className="chip-label">{displayName}</span>
           {onRemove && (
             <button
               className="chip-remove"
               onClick={() => onRemove("file")}
               title="Remove"
-              aria-label={`Remove ${basename(activeFile)} from context`}
+              aria-label={`Remove ${displayName} from context`}
             >
               ×
             </button>

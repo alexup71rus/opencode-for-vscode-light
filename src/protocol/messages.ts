@@ -20,6 +20,8 @@ import type {
   QuestionRequest,
 } from "../bridge/types";
 
+export type FileSearchSource = "mention" | "attach";
+
 export type ExtensionToWebview =
   | { type: "state"; sessions: SessionWithMeta[]; activeSessionId: string | null }
   | {
@@ -38,14 +40,14 @@ export type ExtensionToWebview =
   | { type: "models"; providers: ProviderInfo[]; defaultModel: ModelSelection | null }
   | { type: "agents"; agents: AgentInfo[]; tools: ToolInfo[] }
   | { type: "commands"; commands: CommandInfo[] }
-  | { type: "fileResults"; files: string[] }
+  | { type: "fileResults"; files: string[]; source: FileSearchSource; query: string }
   | { type: "config"; config: ProjectConfig }
   | { type: "skills"; skills: SkillInfo[] }
   | { type: "todos"; sessionId: string; todos: Todo[] }
   | { type: "mcpStatus"; servers: Record<string, McpServerStatus> }
   | { type: "lspStatus"; servers: LspStatusInfo[] }
   | { type: "stats"; totalCost: number; totalTokens: { input: number; output: number; reasoning: number } }
-  | { type: "context"; activeFile: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
+  | { type: "context"; filePath: string | null; fileName: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "filesExist"; results: Record<string, boolean> }
   | { type: "error"; message: string }
@@ -74,7 +76,7 @@ export type WebviewToExtension =
   | { type: "getCommands" }
   | { type: "executeCommand"; sessionId: string; command: string; args: string }
   | { type: "compactSession"; sessionId: string; model: ModelSelection }
-  | { type: "findFiles"; query: string }
+  | { type: "findFiles"; query: string; source: FileSearchSource }
   | { type: "copyText"; text: string }
   | { type: "refreshInspect" }
   | { type: "retryConnection" }

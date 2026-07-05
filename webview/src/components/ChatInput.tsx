@@ -46,7 +46,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const attachRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const activeFile = useStore((s) => s.activeFile);
+  const activeFilePath = useStore((s) => s.activeFilePath);
+  const activeFileName = useStore((s) => s.activeFileName);
   const selection = useStore((s) => s.selection);
   const status = useStore((s) => s.sessionStatus[sessionId]);
   const totalTokens = useStore((s) => s.totalTokens);
@@ -54,7 +55,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const commands = useStore((s) => s.commands);
   const agents = useStore((s) => s.agents);
   const selectedAgent = useStore((s) => s.selectedAgent);
-  const fileResults = useStore((s) => s.fileResults);
+  const mentionResults = useStore((s) => s.mentionResults);
+  const attachResults = useStore((s) => s.attachResults);
   const enqueueMessage = useStore((s) => s.enqueueMessage);
   const sendOnEnter = useStore((s) => s.settings.sendOnEnter);
   const isBusy = status?.type === "busy";
@@ -145,8 +147,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
 
   const filteredFiles = useMemo<string[]>(() => {
     if (!mention.active) return [];
-    return fileResults.slice(0, 50);
-  }, [fileResults, mention.active]);
+    return mentionResults.slice(0, 50);
+  }, [mentionResults, mention.active]);
 
   useEffect(() => {
     setSlashSelected(0);
@@ -154,13 +156,14 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
 
   useEffect(() => {
     setMentionSelected(0);
-  }, [mention.query, fileResults]);
+  }, [mention.query, mentionResults]);
 
   useEffect(() => {
     if (!mention.active) return;
     const q = mention.query;
+    useStore.setState({ mentionFileQuery: q });
     const timer = setTimeout(() => {
-      postMessage({ type: "findFiles", query: q });
+      postMessage({ type: "findFiles", query: q, source: "mention" });
     }, 200);
     return () => clearTimeout(timer);
   }, [mention.active, mention.query]);
@@ -177,11 +180,13 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   useEffect(() => {
     if (!attachOpen) {
       setAttachQuery("");
+      useStore.setState({ attachFileQuery: null, attachResults: [] });
       return;
     }
     const q = attachQuery.trim();
+    useStore.setState({ attachFileQuery: q });
     const timer = setTimeout(() => {
-      postMessage({ type: "findFiles", query: q });
+      postMessage({ type: "findFiles", query: q, source: "attach" });
     }, 200);
     return () => clearTimeout(timer);
   }, [attachOpen, attachQuery]);
@@ -201,14 +206,14 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const slashSel = Math.min(slashSelected, Math.max(0, filteredCommands.length - 1));
   const mentionSel = Math.min(mentionSelected, Math.max(0, filteredFiles.length - 1));
 
-  const fileIncluded = activeFile && !dropFile;
+  const fileIncluded = activeFilePath && !dropFile;
   const selectionIncluded = selection && !dropSelection;
   const hasContext = !!fileIncluded || !!selectionIncluded;
 
   const buildContext = (): AttachedContext | undefined => {
     if (!hasContext) return undefined;
     const ctx: AttachedContext = {};
-    if (fileIncluded) ctx.filePath = activeFile ?? undefined;
+    if (fileIncluded) ctx.filePath = activeFilePath ?? undefined;
     if (selectionIncluded) ctx.selection = selection ?? undefined;
     return ctx;
   };
@@ -467,14 +472,14 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
               <div className="attach-popover">
                 <div className="attach-section">
                   <div className="attach-section-title">Current context</div>
-                  {activeFile ? (
+                  {activeFilePath ? (
                     <button
                       className={`attach-item ${fileIncluded ? "checked" : ""}`}
                       onClick={() => setDropFile((v) => !v)}
                     >
                       <span className="attach-check">{fileIncluded ? "✓" : ""}</span>
                       <span className="attach-item-icon">📄</span>
-                      <span className="attach-item-label" title={activeFile}>{activeFile.split(/[\\/]/).pop()}</span>
+                      <span className="attach-item-label" title={activeFilePath}>{activeFileName ?? activeFilePath.split(/[\\/]/).pop()}</span>
                     </button>
                   ) : (
                     <div className="attach-empty">No active file</div>
@@ -501,10 +506,10 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
                     onChange={(e) => setAttachQuery(e.target.value)}
                   />
                   <div className="attach-results">
-                    {fileResults.length === 0 && attachQuery.trim() && (
+                    {attachResults.length === 0 && attachQuery.trim() && (
                       <div className="attach-empty">No files match “{attachQuery}”.</div>
                     )}
-                    {fileResults.slice(0, 30).map((f) => (
+                    {attachResults.slice(0, 30).map((f) => (
                       <button
                         key={f}
                         className="attach-result"

@@ -74,7 +74,10 @@ export interface AppState {
   agentsRequested: boolean;
 
   commands: CommandInfo[];
-  fileResults: string[];
+  mentionResults: string[];
+  attachResults: string[];
+  mentionFileQuery: string | null;
+  attachFileQuery: string | null;
   skills: SkillInfo[];
   todosBySession: Record<string, Todo[]>;
   mcpStatus: Record<string, McpServerStatus>;
@@ -93,7 +96,8 @@ export interface AppState {
 
   config: ProjectConfig | null;
 
-  activeFile: string | null;
+  activeFilePath: string | null;
+  activeFileName: string | null;
   selection: string | null;
 
   totalCost: number;
@@ -212,7 +216,10 @@ const initialState = {
   selectedAgent: null as string | null,
   agentsRequested: false,
   commands: [] as CommandInfo[],
-  fileResults: [] as string[],
+  mentionResults: [] as string[],
+  attachResults: [] as string[],
+  mentionFileQuery: null as string | null,
+  attachFileQuery: null as string | null,
   skills: [] as SkillInfo[],
   todosBySession: {} as Record<string, Todo[]>,
   mcpStatus: {} as Record<string, McpServerStatus>,
@@ -225,7 +232,8 @@ const initialState = {
   settingsOpen: false,
   helpOpen: false,
   config: null as ProjectConfig | null,
-  activeFile: null as string | null,
+  activeFilePath: null as string | null,
+  activeFileName: null as string | null,
   selection: null as string | null,
   totalCost: 0,
   totalTokens: { input: 0, output: 0, reasoning: 0 },
@@ -544,9 +552,20 @@ export const useStore = create<AppState>((set, get) => ({
         set({ commands: msg.commands });
         break;
 
-      case "fileResults":
-        set({ fileResults: msg.files });
+      case "fileResults": {
+        if (msg.source === "mention") {
+          // Discard stale responses — only apply if the query matches the
+          // last one the user typed in the @mention picker.
+          if (msg.query === get().mentionFileQuery) {
+            set({ mentionResults: msg.files });
+          }
+        } else {
+          if (msg.query === get().attachFileQuery) {
+            set({ attachResults: msg.files });
+          }
+        }
         break;
+      }
 
       case "skills":
         set({ skills: msg.skills });
@@ -576,7 +595,8 @@ export const useStore = create<AppState>((set, get) => ({
 
       case "context":
         set({
-          activeFile: msg.activeFile,
+          activeFilePath: msg.filePath,
+          activeFileName: msg.fileName,
           selection: msg.selection,
         });
         break;

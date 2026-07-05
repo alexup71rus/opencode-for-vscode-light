@@ -27,14 +27,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const log = (message: string) => outputChannel!.appendLine(`[opencode] ${message}`);
 
   const config = getConfig();
+  const hasExternalUrl =
+    config.externalServerUrl.trim().length > 0;
   const binaryPath = getBinaryPath(config);
 
-  if (!binaryPath) {
-    log("opencode binary not found");
+  if (!binaryPath && !hasExternalUrl) {
+    log("opencode binary not found and no external server URL configured");
     context.subscriptions.push(
       vscode.commands.registerCommand("opencode.openPanel", async () => {
         const action = await vscode.window.showErrorMessage(
-          "OpenCode binary was not found. Install it to use the extension.",
+          "OpenCode binary was not found. Install it or configure an external server URL.",
           "Install instructions",
         );
         if (action === "Install instructions") {
@@ -50,7 +52,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return;
   }
 
-  log(`using binary: ${binaryPath}`);
+  if (binaryPath) {
+    log(`using binary: ${binaryPath}`);
+  } else {
+    log("no local binary; using external server only");
+  }
 
   const workdir = resolveWorkdir();
   if (!workdir) {
@@ -82,6 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       config.externalServerUrl || undefined,
       config.serverPassword || undefined,
       config.serverHostname,
+      log,
     );
     const serverInfo = await serverManager.ensureServer(workdir);
     log(`server ready: ${serverInfo.url}`);
@@ -128,6 +135,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffProvider),
     );
 
+    const reconnect = async (): Promise<boolean> => {
+      try {
+        const info = await serverManager!.ensureServer(workdir);
+        if (info.url !== client.url) {
+          log(`reconnecting to server: ${info.url}`);
+          client.updateServer(info);
+          eventStream!.stop();
+          void eventStream!.start();
+        }
+        return true;
+      } catch (err) {
+        log(`reconnect failed: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+      }
+    };
+
     const panelManager = new WebviewPanelManager(
       context,
       sessionService,
@@ -144,6 +167,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         externalUrl: config.externalServerUrl ?? "",
       },
       diffProvider,
+      reconnect,
     );
 
     registerCommands(context, panelManager, sessionService);
@@ -170,10 +194,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     );
 
+    let contextTimer: NodeJS.Timeout | undefined;
+    const scheduleContextPush = (): void => {
+      if (contextTimer) clearTimeout(contextTimer);
+      contextTimer = setTimeout(() => {
+        contextTimer = undefined;
+        void panelManager.pushContext();
+      }, 150);
+    };
+
     context.subscriptions.push(
       vscode.window.onDidChangeActiveTextEditor(() => {
-        // Context is fetched on demand by the webview via the getContext message.
+        // Switching the active editor should refresh immediately.
+        void panelManager.pushContext();
       }),
+    );
+
+    context.subscriptions.push(
+      vscode.window.onDidChangeTextEditorSelection(scheduleContextPush),
     );
 
     context.subscriptions.push({ dispose: () => diffProvider.dispose() });

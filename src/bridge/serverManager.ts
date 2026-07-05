@@ -23,6 +23,7 @@ export class ServerManager {
     private readonly externalUrl?: string,
     private readonly externalPassword?: string,
     hostname: string = "127.0.0.1",
+    private readonly log?: (line: string) => void,
   ) {
     this.hostname = hostname;
   }
@@ -101,11 +102,51 @@ export class ServerManager {
       throw err;
     }
 
-    child.once("exit", () => {
+    this.attachStreamDrain(child);
+
+    child.once("exit", (code, signal) => {
       this.child = null;
+      // Clear stale info so ensureServer() will respawn on next call instead
+      // of handing out a dead URL to callers.
+      this.info = null;
+      const detail = code !== null ? `code ${code}` : `signal ${signal}`;
+      this.log?.(`[server] process exited (${detail})`);
     });
 
     return { url: actualUrl, authHeader, isManaged: true };
+  }
+
+  /**
+   * Drain stdout/stderr for the lifetime of the child. Once the startup
+   * listener is detached by waitForListening(), nobody reads the pipes —
+   * the OS buffer (~64KB) fills up and the child blocks on write. This
+   * attaches permanent flowing-mode listeners that consume data regardless
+   * of whether a logger is configured.
+   */
+  private attachStreamDrain(child: ChildProcess): void {
+    this.drainStream(child.stdout, "stdout");
+    this.drainStream(child.stderr, "stderr");
+  }
+
+  private drainStream(
+    stream: NodeJS.ReadableStream | null,
+    label: string,
+  ): void {
+    if (!stream) return;
+    if (this.log) {
+      let pending = "";
+      stream.on("data", (chunk: Buffer | string) => {
+        pending += chunk.toString();
+        const lines = pending.split(/\r?\n/);
+        pending = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.length > 0) this.log!(`[${label}] ${line}`);
+        }
+      });
+    } else {
+      // No logger — still must drain to prevent pipe-buffer deadlock.
+      stream.on("data", () => {});
+    }
   }
 
   private waitForListening(child: ChildProcess, fallbackPort: number): Promise<string> {

@@ -63,7 +63,7 @@ This extension takes a different approach: **a purpose-built frontend that talks
 
 - [OpenCode](https://opencode.ai) installed and on PATH (`which opencode`)
 - VS Code 1.85+
-- Node.js 18+ (for building from source)
+- Node.js 20+ (for building from source; toolchain deps require Node ≥ 20.18.1)
 
 ## Getting started
 

@@ -37,10 +37,10 @@ function estimateBubbleHeight(b: { message: MessageWithParts }): number {
 }
 
 function buildContext(): AttachedContext | undefined {
-  const { activeFile, selection } = useStore.getState();
-  if (!activeFile && !selection) return undefined;
+  const { activeFilePath, selection } = useStore.getState();
+  if (!activeFilePath && !selection) return undefined;
   const ctx: AttachedContext = {};
-  if (activeFile) ctx.filePath = activeFile;
+  if (activeFilePath) ctx.filePath = activeFilePath;
   if (selection) ctx.selection = selection;
   return ctx;
 }

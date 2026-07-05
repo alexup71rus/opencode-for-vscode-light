@@ -65,6 +65,7 @@ export class WebviewPanelManager {
     private readonly output: vscode.OutputChannel,
     private readonly connection: ConnectionInfo,
     private readonly diffProvider: DiffDocumentProvider,
+    private readonly reconnect: () => Promise<boolean>,
   ) {
     this.loadConfig();
   }
@@ -149,6 +150,17 @@ export class WebviewPanelManager {
     }
   }
 
+  async pushContext(): Promise<void> {
+    const context = await this.contextProvider.getContext();
+    this.postMessage({
+      type: "context",
+      filePath: context.filePath ?? null,
+      fileName: context.fileName ?? null,
+      selection: context.selection ?? null,
+      diagnostics: context.diagnostics ?? null,
+    });
+  }
+
   private async handleMessage(msg: WebviewToExtension): Promise<void> {
     if (!this.isReady) {
       this.isReady = true;
@@ -191,6 +203,7 @@ export class WebviewPanelManager {
       case "sendMessage": {
         try {
           await this.sessionService.sendMessage(
+            msg.sessionId,
             msg.text,
             msg.context,
             msg.options ?? undefined,
@@ -217,7 +230,7 @@ export class WebviewPanelManager {
       }
       case "abortSession": {
         try {
-          await this.sessionService.abortSession();
+          await this.sessionService.abortSession(msg.sessionId);
         } catch (err) {
           this.reportError(err, "abort session");
         }
@@ -225,7 +238,7 @@ export class WebviewPanelManager {
       }
       case "replyPermission": {
         try {
-          await this.sessionService.replyPermission(msg.permissionId, msg.decision);
+          await this.sessionService.replyPermission(msg.sessionId, msg.permissionId, msg.decision);
         } catch (err) {
           this.reportError(err, "reply to permission");
         }
@@ -346,11 +359,7 @@ export class WebviewPanelManager {
       }
       case "getContext": {
         try {
-          const context = await this.contextProvider.getContext();
-          const activeFile = context.fileName ?? context.filePath ?? null;
-          const selection = context.selection ?? null;
-          const diagnostics = context.diagnostics ?? null;
-          this.postMessage({ type: "context", activeFile, selection, diagnostics });
+          await this.pushContext();
         } catch (err) {
           this.reportError(err, "get context");
         }
@@ -400,7 +409,7 @@ export class WebviewPanelManager {
       case "findFiles": {
         try {
           const files = await this.client.findFiles(msg.query);
-          this.postMessage({ type: "fileResults", files });
+          this.postMessage({ type: "fileResults", files, source: msg.source, query: msg.query });
         } catch (err) {
           this.reportError(err, "find files");
         }
@@ -424,6 +433,12 @@ export class WebviewPanelManager {
       }
       case "retryConnection": {
         try {
+          this.postServerStatus("starting");
+          const ok = await this.reconnect();
+          if (!ok) {
+            this.postServerStatus("error", "Server respawn failed — see output for details.");
+            break;
+          }
           await Promise.all([
             this.sessionService.refreshSessions(),
             this.modelService.refresh(),

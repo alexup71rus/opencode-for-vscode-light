@@ -39,19 +39,35 @@ export class OpenCodeClientError extends Error {
 }
 
 export class OpenCodeClient {
-  private readonly sdk: SdkClient;
+  private sdk: SdkClient;
   private readonly workdir: string;
-  private readonly baseUrl: string;
-  private readonly authHeader: string;
+  private baseUrl: string;
+  private authHeader: string;
 
   constructor(serverInfo: ServerInfo, workdir: string) {
     this.workdir = workdir;
     this.baseUrl = serverInfo.url;
     this.authHeader = serverInfo.authHeader;
-    this.sdk = createOpencodeClient({
+    this.sdk = this.createSdk(serverInfo);
+  }
+
+  /**
+   * Swap the underlying server connection. All services that hold a reference
+   * to this client instance automatically pick up the new URL/auth — no need
+   * to recreate the services themselves. Call this after respawning a managed
+   * server (new port + password) so requests and SSE land on the live process.
+   */
+  updateServer(serverInfo: ServerInfo): void {
+    this.baseUrl = serverInfo.url;
+    this.authHeader = serverInfo.authHeader;
+    this.sdk = this.createSdk(serverInfo);
+  }
+
+  private createSdk(serverInfo: ServerInfo): SdkClient {
+    return createOpencodeClient({
       baseUrl: serverInfo.url,
       headers: { Authorization: serverInfo.authHeader },
-      directory: workdir,
+      directory: this.workdir,
     } as Record<string, unknown>);
   }
 

@@ -431,9 +431,9 @@ export default function App(): React.ReactElement {
                 <>
                   <QueueBar />
                   <ChatInput sessionId={activeSessionId} />
-                  <QuestionOverlay sessionId={activeSessionId} />
                 </>
               )}
+              <QuestionOverlay sessionId={activeSessionId} />
             </>
           ) : (
             <div className="chat-empty">
