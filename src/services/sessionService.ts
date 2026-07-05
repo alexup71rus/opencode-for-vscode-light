@@ -24,7 +24,6 @@ interface FileAttachment {
 export class SessionService extends EventEmitter {
   private readonly client: OpenCodeClient;
   private readonly eventStream: EventStream;
-  private workdir: string;
 
   private sessions: SessionWithMeta[] = [];
   private activeSessionId: string | null = null;
@@ -36,11 +35,10 @@ export class SessionService extends EventEmitter {
   private questionTimer: ReturnType<typeof setInterval> | null = null;
   private openSessionToken = 0;
 
-  constructor(client: OpenCodeClient, eventStream: EventStream, workdir: string) {
+  constructor(client: OpenCodeClient, eventStream: EventStream) {
     super();
     this.client = client;
     this.eventStream = eventStream;
-    this.workdir = workdir;
   }
 
   getSessions(): SessionWithMeta[] {
@@ -106,10 +104,6 @@ export class SessionService extends EventEmitter {
       clearInterval(this.questionTimer);
       this.questionTimer = null;
     }
-  }
-
-  updateWorkdir(workdir: string): void {
-    this.workdir = workdir;
   }
 
   async refreshSessions(): Promise<void> {

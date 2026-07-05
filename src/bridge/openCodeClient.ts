@@ -411,9 +411,16 @@ export class OpenCodeClient {
   ): AsyncGenerator<{ type: string; properties: Record<string, unknown> }> {
     let result: Awaited<ReturnType<typeof this.sdk.event.subscribe>>;
     try {
+      // Pass query.directory explicitly. The SDK client is constructed with
+      // a directory interceptor, but it does not reliably apply to the SSE
+      // endpoint; without this, a shared external server would stream
+      // events from every project it serves into this client. Scoping to
+      // our inherited workdir is the correct semantics for both managed
+      // and external server modes.
       result = await this.sdk.event.subscribe({
+        query: { directory: this.workdir },
         ...(signal ? { signal } : {}),
-      } as Record<string, unknown>);
+      });
     } catch (err) {
       if (signal?.aborted) return;
       throw err;

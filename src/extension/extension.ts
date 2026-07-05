@@ -98,7 +98,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     eventStream = new EventStream(client);
     await eventStream.start();
 
-    sessionService = new SessionService(client, eventStream, workdir);
+    sessionService = new SessionService(client, eventStream);
     await sessionService.start();
 
     const modelService = new ModelService(client);
@@ -186,13 +186,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders((e) => {
-        if (e.added.length > 0) {
-          const next = resolveWorkdir();
-          if (next) {
-            sessionService!.updateWorkdir(next);
-            log(`workspace changed: ${next}`);
-          }
-        }
+        if (e.added.length === 0) return;
+        // workdir is captured once at activation: it is the cwd of the
+        // spawned opencode server, the SDK's directory parameter, and the
+        // root for diff/file checks. We deliberately do not try to swap it
+        // in-place — a half-migrated client pointing at a new folder while
+        // the server keeps running with the old cwd would silently execute
+        // actions in the wrong project. If the effective root actually
+        // changed, ask the user to reload so activation re-runs cleanly.
+        const next = resolveWorkdir();
+        if (!next || next === workdir) return;
+        log(`workspace root changed: ${next} (was ${workdir}); reload required`);
+        void vscode.window
+          .showInformationMessage(
+            "OpenCode: workspace folder changed. Reload the window to apply.",
+            "Reload Window",
+          )
+          .then((action) => {
+            if (action === "Reload Window") {
+              void vscode.commands.executeCommand("workbench.action.reloadWindow");
+            }
+          });
       }),
     );
 
