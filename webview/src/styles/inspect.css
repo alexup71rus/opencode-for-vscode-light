@@ -386,7 +386,8 @@
   font-size: 11px;
   line-height: 1.4;
   white-space: nowrap;
-  align-self: flex-start;
+  z-index: 99999;
+  pointer-events: none;
 }
 
 .context-seg-tooltip-head {

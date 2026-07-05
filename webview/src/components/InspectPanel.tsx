@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { formatTokenCount, findLastAssistantWithTokens } from "../utils";
@@ -33,7 +34,7 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   const [open, setOpen] = useState(true);
   const legendOpen = useStore((s) => s.contextLegendOpen);
   const setLegendOpen = useStore((s) => s.setContextLegendOpen);
-  const [segHover, setSegHover] = useState<string | null>(null);
+  const [segHover, setSegHover] = useState<{ key: string; x: number; y: number } | null>(null);
 
   const last = findLastAssistantWithTokens(messages);
   if (!last) return null;
@@ -74,31 +75,41 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
                         key={s.key}
                         className="context-bar-seg"
                         style={{ width: `${w}%`, background: s.color }}
-                        onMouseEnter={() => setSegHover(s.key)}
-                        onMouseLeave={() => setSegHover((h) => (h === s.key ? null : h))}
+                        onMouseEnter={(e) => {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setSegHover({ key: s.key, x: r.left + r.width / 2, y: r.bottom + 6 });
+                        }}
+                        onMouseLeave={() => setSegHover((h) => (h?.key === s.key ? null : h))}
                       />
                     );
                   })}
                 </div>
               </div>
               {segHover &&
-                (() => {
-                  const s = segs.find((x) => x.key === segHover);
-                  if (!s) return null;
-                  const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
-                  const segPctOfUsed = used > 0 ? Math.round((s.value / used) * 100) : 0;
-                  return (
-                    <div className="context-seg-tooltip" role="tooltip">
-                      <div className="context-seg-tooltip-head">
-                        <span className="context-legend-dot" style={{ background: s.color }} />
-                        <span>{s.label}</span>
+                createPortal(
+                  (() => {
+                    const s = segs.find((x) => x.key === segHover.key);
+                    if (!s) return null;
+                    const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
+                    const segPctOfUsed = used > 0 ? Math.round((s.value / used) * 100) : 0;
+                    return (
+                      <div
+                        className="context-seg-tooltip"
+                        role="tooltip"
+                        style={{ position: "fixed", left: segHover.x, top: segHover.y, transform: "translateX(-50%)" }}
+                      >
+                        <div className="context-seg-tooltip-head">
+                          <span className="context-legend-dot" style={{ background: s.color }} />
+                          <span>{s.label}</span>
+                        </div>
+                        <div className="context-seg-tooltip-row">{formatTokenCount(s.value)} tokens</div>
+                        <div className="context-seg-tooltip-row">{segPctOfUsed}% of context</div>
+                        <div className="context-seg-tooltip-row">{segPctOfLimit}% of limit</div>
                       </div>
-                      <div className="context-seg-tooltip-row">{formatTokenCount(s.value)} tokens</div>
-                      <div className="context-seg-tooltip-row">{segPctOfUsed}% of context</div>
-                      <div className="context-seg-tooltip-row">{segPctOfLimit}% of limit</div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })(),
+                  document.body,
+                )}
               <div className="context-usage-label">
                 {used.toLocaleString()} / {limit.toLocaleString()} ({pct}%)
               </div>
