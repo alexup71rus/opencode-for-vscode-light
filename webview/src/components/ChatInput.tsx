@@ -21,18 +21,15 @@ interface MentionState {
 
 const NO_MENTION: MentionState = { active: false, start: -1, query: "" };
 
-function looksLikeFilePath(p: string): boolean {
-  if (p.includes("/") || p.includes("\\")) return true;
-  return /\.[a-z0-9]+$/i.test(p);
-}
-
 export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const text = useStore((s) => s.drafts[sessionId] ?? "");
   const setDraft = useStore((s) => s.setDraft);
   const setText = (t: string) => setDraft(sessionId, t);
+
   const [dropFile, setDropFile] = useState(false);
   const [dropSelection, setDropSelection] = useState(false);
   const [sending, setSending] = useState(false);
+  const [mentionAttachments, setMentionAttachments] = useState<MessageAttachment[]>([]);
   const [cursorPos, setCursorPos] = useState(0);
   const [slashSelected, setSlashSelected] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
@@ -197,6 +194,11 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     setText(next);
     setCursorPos(next.length);
     setSelTarget(next.length);
+    setMentionAttachments((prev) => {
+      if (prev.some((a) => a.url === path)) return prev;
+      const base = path.split(/[\\/]/).pop() ?? path;
+      return [...prev, { url: path, filename: base, mime: "text/plain" }];
+    });
     setAttachOpen(false);
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
@@ -218,32 +220,20 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     return ctx;
   };
 
-  const parseFileMentions = (value: string): MessageAttachment[] | undefined => {
-    const result: MessageAttachment[] = [];
-    const seen = new Set<string>();
-    const tokens = value.split(/\s+/).filter(Boolean);
-    for (const tok of tokens) {
-      if (tok.startsWith("@") && tok.length > 1) {
-        const path = tok.slice(1);
-        if (looksLikeFilePath(path) && !seen.has(path)) {
-          seen.add(path);
-          const base = path.split(/[\\/]/).pop() ?? path;
-          result.push({ url: path, filename: base, mime: "text/plain" });
-        }
-      }
-    }
-    return result.length > 0 ? result : undefined;
+  const activeAttachments = (trimmed: string): MessageAttachment[] | undefined => {
+    if (mentionAttachments.length === 0) return undefined;
+    const present = mentionAttachments.filter((a) => trimmed.includes(`@${a.url}`));
+    return present.length > 0 ? present : undefined;
   };
 
   const dispatchSend = (trimmed: string) => {
-    const attachments = parseFileMentions(trimmed);
     postMessage({
       type: "sendMessage",
       sessionId,
       text: trimmed,
       context: buildContext(),
       options: buildSendOptions(),
-      attachments,
+      attachments: activeAttachments(trimmed),
     });
   };
 
@@ -292,14 +282,16 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
         text: trimmed,
         context: buildContext(),
         options: buildSendOptions(),
-        attachments: parseFileMentions(trimmed),
+        attachments: activeAttachments(trimmed),
       });
       setText("");
+      setMentionAttachments([]);
       return;
     }
     setSending(true);
     dispatchSend(trimmed);
     setText("");
+    setMentionAttachments([]);
   };
 
   // Send straight to the server now — no abort. opencode is trusted to steer
@@ -309,6 +301,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     if (!trimmed) return;
     dispatchSend(trimmed);
     setText("");
+    setMentionAttachments([]);
   };
 
   const abort = () => {
