@@ -1,14 +1,63 @@
 import { useState } from "react";
-import { useStore } from "../store/store";
+import { useStore, type QueuedMessage } from "../store/store";
+import { postMessage } from "../api/vscodeApi";
 
 export function QueueBar(): React.ReactElement | null {
   const queuedMessages = useStore((s) => s.queuedMessages);
   const removeQueuedMessage = useStore((s) => s.removeQueuedMessage);
+  const sessionId = useStore((s) => s.activeSessionId);
+  const setDraft = useStore((s) => s.setDraft);
   const [expanded, setExpanded] = useState(false);
 
   if (queuedMessages.length === 0) return null;
   const first = queuedMessages[0];
   const more = queuedMessages.length - 1;
+
+  // Send straight to the server now — same "send now" path as the composer's
+  // force button, reusing the context/options/attachments captured at enqueue
+  // time so the message goes out exactly as it was queued.
+  const forceSendQueued = (q: QueuedMessage) => {
+    if (!sessionId) return;
+    postMessage({
+      type: "sendMessage",
+      sessionId,
+      text: q.text,
+      context: q.context,
+      options: q.options,
+      attachments: q.attachments,
+    });
+    removeQueuedMessage(q.id);
+  };
+
+  // Hand the message back to the composer for editing.
+  const editQueued = (q: QueuedMessage) => {
+    if (!sessionId) return;
+    setDraft(sessionId, q.text);
+    removeQueuedMessage(q.id);
+  };
+
+  const actions = (q: QueuedMessage) => (
+    <>
+      <button
+        type="button"
+        className="queue-item-action"
+        title="Send now"
+        aria-label="Send now"
+        onClick={() => forceSendQueued(q)}
+      >
+        <span className="codicon codicon-send" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="queue-item-action"
+        title="Edit in composer"
+        aria-label="Edit in composer"
+        onClick={() => editQueued(q)}
+      >
+        <span className="codicon codicon-edit" aria-hidden="true" />
+      </button>
+    </>
+  );
 
   if (expanded) {
     return (
@@ -27,6 +76,7 @@ export function QueueBar(): React.ReactElement | null {
           {queuedMessages.map((q) => (
             <div key={q.id} className="queue-item">
               <span className="queue-item-text">{q.text}</span>
+              {actions(q)}
               <button
                 className="queue-item-remove"
                 title="Remove from queue"
@@ -49,6 +99,7 @@ export function QueueBar(): React.ReactElement | null {
           Queued · {queuedMessages.length}
         </span>
         <span className="queue-item-text">{first.text}</span>
+        {actions(first)}
         <button
           className="queue-bar-toggle"
           title={more > 0 ? `Show ${more} more` : "Expand"}

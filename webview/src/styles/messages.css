@@ -219,6 +219,29 @@
   color: var(--vscode-errorForeground);
 }
 
+.queue-item-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color var(--opencode-ease), background var(--opencode-ease);
+}
+
+.queue-item-action .codicon {
+  font-size: 13px;
+}
+
+.queue-item-action:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground);
+}
+
 .force-btn {
   flex: 0 0 auto;
   display: inline-flex;
