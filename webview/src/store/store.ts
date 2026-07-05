@@ -114,6 +114,8 @@ export interface AppState {
     | (DiffModalBase & { status: "ready"; label: string; before: string; after: string })
     | (DiffModalBase & { status: "error"; message: string });
   fileExists: Record<string, boolean>;
+  drafts: Record<string, string>;
+  setDraft: (sessionId: string, text: string) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setRightPanelOpen: (open: boolean) => void;
@@ -229,6 +231,7 @@ const initialState = {
   queuedMessages: [] as QueuedMessage[],
   diffModal: null as AppState["diffModal"],
   fileExists: {} as Record<string, boolean>,
+  drafts: {} as Record<string, string>,
   changesBaseline: {} as Record<string, string>,
 };
 
@@ -637,6 +640,9 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setSessionSearch: (q) => set({ sessionSearch: q }),
+
+  setDraft: (sessionId, text) =>
+    set((s) => ({ drafts: { ...s.drafts, [sessionId]: text } })),
 
   togglePin: (sessionId) => {
     set((s) => {

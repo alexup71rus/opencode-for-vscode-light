@@ -27,7 +27,9 @@ function looksLikeFilePath(p: string): boolean {
 }
 
 export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
-  const [text, setText] = useState("");
+  const text = useStore((s) => s.drafts[sessionId] ?? "");
+  const setDraft = useStore((s) => s.setDraft);
+  const setText = (t: string) => setDraft(sessionId, t);
   const [dropFile, setDropFile] = useState(false);
   const [dropSelection, setDropSelection] = useState(false);
   const [sending, setSending] = useState(false);
@@ -86,7 +88,6 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
 
   useEffect(() => {
     setSending(false);
-    setText("");
   }, [sessionId]);
 
   useEffect(() => {
