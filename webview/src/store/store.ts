@@ -99,12 +99,14 @@ export interface AppState {
   sidebarWidth: number;
   rightWidth: number;
   recentPanelHidden: boolean;
+  changesBaseline: Record<string, string>;
   queuedMessages: QueuedMessage[];
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
   setRecentPanelHidden: (hidden: boolean) => void;
+  applyChanges: (sessionId: string, messageId: string) => void;
 
   handleMessage: (msg: ExtensionToWebview) => void;
   setSelectedModel: (model: ModelSelection) => void;
@@ -209,6 +211,7 @@ const initialState = {
   totalTokens: { input: 0, output: 0, reasoning: 0 },
   sessionStatus: {} as Record<string, SessionStatusInfo>,
   queuedMessages: [] as QueuedMessage[],
+  changesBaseline: {} as Record<string, string>,
 };
 
 interface PersistedUi {
@@ -224,6 +227,7 @@ interface PersistedUi {
   sidebarWidth?: number;
   rightWidth?: number;
   recentPanelHidden?: boolean;
+  changesBaseline?: Record<string, string>;
 }
 
 function loadPersistedUi(): PersistedUi {
@@ -274,6 +278,7 @@ export const useStore = create<AppState>((set, get) => ({
   sidebarWidth: persistedUi.sidebarWidth ?? 230,
   rightWidth: persistedUi.rightWidth ?? 250,
   recentPanelHidden: persistedUi.recentPanelHidden ?? false,
+  changesBaseline: persistedUi.changesBaseline ?? {},
 
   setSidebarOpen: (open) => {
     savePersistedUi({ sidebarOpen: open });
@@ -301,6 +306,11 @@ export const useStore = create<AppState>((set, get) => ({
   setRecentPanelHidden: (hidden) => {
     savePersistedUi({ recentPanelHidden: hidden });
     set({ recentPanelHidden: hidden });
+  },
+  applyChanges: (sessionId, messageId) => {
+    const next = { ...(get().changesBaseline ?? {}), [sessionId]: messageId };
+    savePersistedUi({ changesBaseline: next });
+    set({ changesBaseline: next });
   },
   enqueueMessage: (m, priority) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

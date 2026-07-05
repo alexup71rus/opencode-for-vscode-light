@@ -24,10 +24,20 @@ const WRITE_TOOLS = new Set(["write"]);
  * errored edit changed nothing. This is the reliable source of "what changed"
  * since the server's /session/{id}/diff and /file/status endpoints are empty
  * on opencode 1.17.x.
+ *
+ * When `afterMessageId` is provided, only messages strictly newer than that
+ * baseline are considered. This supports the "Apply" action, which marks the
+ * current set of changes as reviewed so the list reflects only subsequent
+ * edits. Files on disk are not affected by the baseline.
  */
-export function extractFileChanges(messages: MessageWithParts[]): FileChange[] {
+export function extractFileChanges(messages: MessageWithParts[], afterMessageId?: string): FileChange[] {
+  let considered = messages;
+  if (afterMessageId) {
+    const idx = messages.findIndex((m) => m.info.id === afterMessageId);
+    if (idx >= 0) considered = messages.slice(idx + 1);
+  }
   const byFile = new Map<string, FileChange>();
-  for (const msg of messages) {
+  for (const msg of considered) {
     for (const part of msg.parts) {
       if (part.type !== "tool") continue;
       const state = part.state as { status?: string; input?: Record<string, unknown> | null };
