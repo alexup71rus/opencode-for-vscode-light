@@ -416,7 +416,18 @@ export default function App(): React.ReactElement {
           ) : activeSessionId ? (
             <>
               <ChatView sessionId={activeSessionId} />
-              {activeIsChild ? null : (
+              {activeIsChild ? (
+                <div className="subagent-back-bar">
+                  <button
+                    className="subagent-back-btn"
+                    title="Back to main chat"
+                    onClick={() => postMessage({ type: "openSession", sessionId: parentSession!.id })}
+                  >
+                    <span className="subagent-back-arrow" aria-hidden="true">←</span>
+                    <span>Back to <strong>{parentSession!.title || "Untitled"}</strong></span>
+                  </button>
+                </div>
+              ) : (
                 <>
                   <QueueBar />
                   <ChatInput sessionId={activeSessionId} />

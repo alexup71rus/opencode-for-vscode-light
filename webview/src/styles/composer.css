@@ -7,6 +7,43 @@
   background: var(--vscode-editor-background);
 }
 
+/* ===== Subagent back bar (replaces the composer in a child session) ===== */
+
+.subagent-back-bar {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+  background: var(--vscode-editor-background);
+  display: flex;
+  justify-content: center;
+}
+
+.subagent-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 820px;
+  width: 100%;
+  justify-content: center;
+  padding: 8px 12px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, inherit);
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.subagent-back-btn:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+  border-color: var(--vscode-focusBorder, rgba(255, 255, 255, 0.25));
+}
+
+.subagent-back-arrow {
+  font-size: 14px;
+  line-height: 1;
+}
+
 /* ===== Question overlay (covers the composer) ===== */
 
 .question-overlay {
