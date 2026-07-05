@@ -31,7 +31,8 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   const messages = useStore((s) => s.messagesBySession[sessionId]);
   const providers = useStore((s) => s.providers);
   const [open, setOpen] = useState(true);
-  const [legendOpen, setLegendOpen] = useState(false);
+  const legendOpen = useStore((s) => s.contextLegendOpen);
+  const setLegendOpen = useStore((s) => s.setContextLegendOpen);
   const [segHover, setSegHover] = useState<{ key: string; center: number } | null>(null);
 
   const last = findLastAssistantWithTokens(messages);
@@ -111,7 +112,7 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
                 <button
                   type="button"
                   className="context-legend-toggle"
-                  onClick={() => setLegendOpen((v) => !v)}
+                  onClick={() => setLegendOpen(!legendOpen)}
                   aria-expanded={legendOpen}
                 >
                   {legendOpen ? "Hide legend" : "Show legend"}

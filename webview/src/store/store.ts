@@ -106,6 +106,7 @@ export interface AppState {
   sidebarWidth: number;
   rightWidth: number;
   recentPanelHidden: boolean;
+  contextLegendOpen: boolean;
   changesBaseline: Record<string, string>;
   queuedMessages: QueuedMessage[];
   diffModal:
@@ -121,6 +122,7 @@ export interface AppState {
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
   setRecentPanelHidden: (hidden: boolean) => void;
+  setContextLegendOpen: (open: boolean) => void;
   applyChanges: (sessionId: string, messageId: string) => void;
   openFileDiffModal: (filePath: string, edits: { oldStr: string; newStr: string }[], isNewFile: boolean) => void;
   closeFileDiffModal: () => void;
@@ -248,6 +250,7 @@ interface PersistedUi {
   sidebarWidth?: number;
   rightWidth?: number;
   recentPanelHidden?: boolean;
+  contextLegendOpen?: boolean;
   changesBaseline?: Record<string, string>;
 }
 
@@ -299,6 +302,7 @@ export const useStore = create<AppState>((set, get) => ({
   sidebarWidth: persistedUi.sidebarWidth ?? 230,
   rightWidth: persistedUi.rightWidth ?? 250,
   recentPanelHidden: persistedUi.recentPanelHidden ?? false,
+  contextLegendOpen: persistedUi.contextLegendOpen ?? false,
   changesBaseline: persistedUi.changesBaseline ?? {},
 
   setSidebarOpen: (open) => {
@@ -327,6 +331,10 @@ export const useStore = create<AppState>((set, get) => ({
   setRecentPanelHidden: (hidden) => {
     savePersistedUi({ recentPanelHidden: hidden });
     set({ recentPanelHidden: hidden });
+  },
+  setContextLegendOpen: (open) => {
+    savePersistedUi({ contextLegendOpen: open });
+    set({ contextLegendOpen: open });
   },
   applyChanges: (sessionId, messageId) => {
     const next = { ...(get().changesBaseline ?? {}), [sessionId]: messageId };
