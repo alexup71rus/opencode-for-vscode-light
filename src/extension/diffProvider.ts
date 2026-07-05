@@ -85,7 +85,7 @@ export async function reconstructFileDiff(
     const label = `${path.basename(abs)} · agent changes`;
     return { before, after, label };
   } catch {
-    return { error: `File not available: ${filePath}` };
+    return { error: "This file no longer exists on disk." };
   }
 }
 

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { ToolCallView } from "./ToolCallView";
 import { postMessage } from "../api/vscodeApi";
 import { useStore } from "../store/store";
@@ -313,7 +313,16 @@ export const MessageBubble = memo(function MessageBubble({
   // Files this assistant turn touched — shown as a footer so the change set is
   // visible even with the sidebar closed. Derived from the message's tool
   // parts (the server's diff endpoints are empty on this opencode version).
-  const changedFiles = isUser ? [] : extractFileChanges([message]);
+  const changedFiles = useMemo(
+    () => (isUser ? [] : extractFileChanges([message])),
+    [isUser, message],
+  );
+  const fileExists = useStore((s) => s.fileExists);
+  const checkFilesExist = useStore((s) => s.checkFilesExist);
+  useEffect(() => {
+    if (changedFiles.length === 0) return;
+    checkFilesExist(changedFiles.map((cf) => cf.filePath));
+  }, [changedFiles, checkFilesExist]);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -520,7 +529,11 @@ export const MessageBubble = memo(function MessageBubble({
               </span>
               <div className="changed-files-chips">
                 {changedFiles.map((cf) => (
-                  <div key={cf.filePath} className="changed-file-chip" title={cf.filePath}>
+                  <div
+                    key={cf.filePath}
+                    className={`changed-file-chip${fileExists[cf.filePath] === false ? " missing" : ""}`}
+                    title={cf.filePath}
+                  >
                     <button
                       className="changed-file-chip-main"
                       onClick={() =>
@@ -532,7 +545,7 @@ export const MessageBubble = memo(function MessageBubble({
                         })
                       }
                     >
-                      <span className={`change-status change-status-${cf.isNewFile ? "added" : "modified"}`} />
+                      <span className={`change-status change-status-${fileExists[cf.filePath] === false ? "deleted" : cf.isNewFile ? "added" : "modified"}`} />
                       <span className="changed-file-name">{basename(cf.filePath)}</span>
                       <span className="changed-file-delta">
                         {cf.additions > 0 && <span className="delta-add">+{cf.additions}</span>}

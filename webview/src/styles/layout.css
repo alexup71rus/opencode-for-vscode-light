@@ -1,0 +1,275 @@
+/* ===== App shell ===== */
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  flex: 0 0 var(--opencode-header-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border, transparent));
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.app-title {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+
+.app-title-mark {
+  color: var(--vscode-foreground);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.app-title-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-title-crumb {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+  opacity: 0.7;
+  transition: opacity var(--opencode-ease), background var(--opencode-ease);
+}
+
+.app-title-crumb:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.app-title-sep {
+  opacity: 0.4;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.app-title-badge {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  opacity: 0.85;
+  flex-shrink: 0;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.header-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--vscode-foreground);
+  opacity: 0.75;
+  transition: background var(--opencode-ease), opacity var(--opencode-ease), border-color var(--opencode-ease);
+}
+
+.header-new-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: 1px solid transparent;
+  border-radius: 13px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--opencode-ease), opacity var(--opencode-ease);
+}
+
+.header-new-chat:hover {
+  background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+  opacity: 0.92;
+}
+
+.header-new-chat-label {
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.header-toggle:hover {
+  background: var(--vscode-list-hoverBackground);
+  opacity: 1;
+}
+
+.header-toggle.active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  opacity: 1;
+}
+
+.header-toggle-badge {
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-toggle.active .header-toggle-badge {
+  background: var(--vscode-badge-foreground);
+  color: var(--vscode-badge-background);
+}
+
+.header-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+}
+
+.header-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.header-status-ok .header-status-dot {
+  background: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #3fb950));
+}
+
+.header-status-pending .header-status-dot {
+  background: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow, #d29922));
+  animation: pulse 1.4s infinite;
+}
+
+.header-status-error .header-status-dot {
+  background: var(--vscode-errorForeground, var(--vscode-charts-red, #f85149));
+}
+
+.header-status-error {
+  color: var(--vscode-errorForeground, var(--vscode-foreground));
+}
+
+.app-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ===== Sidebar ===== */
+
+.app-sidebar {
+  flex: 0 0 var(--opencode-sidebar-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-sideBar-background);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.resize-handle {
+  flex: 0 0 7px;
+  position: relative;
+  cursor: col-resize;
+  z-index: 4;
+}
+
+.resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.resize-handle:hover::before,
+.resize-handle:active::before {
+  width: 2px;
+  background: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder, transparent));
+}
+
+/* ===== Main + right panel ===== */
+
+.app-main {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--vscode-editor-background);
+}
+
+.app-right {
+  flex: 0 0 var(--opencode-right-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-sideBar-background);
+  overflow-y: auto;
+  padding: var(--opencode-gap);
+  gap: var(--opencode-gap);
+  min-width: 0;
+}
+
+.app-right-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.app-right-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+

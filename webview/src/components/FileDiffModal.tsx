@@ -3,9 +3,6 @@ import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { computeLineDiff, type DiffRow } from "../diff";
 
-/** Skip running the O(n*m) diff for large files; show a notice instead. */
-const LINE_LIMIT = 3000;
-
 function basename(p: string): string {
   const parts = p.split(/[\\/]/);
   return parts[parts.length - 1] ?? p;
@@ -35,14 +32,10 @@ export function FileDiffModal(): React.ReactElement | null {
     () => (ready ? computeLineDiff(before, after) : []),
     [ready, before, after],
   );
-  const tooLarge = useMemo(
-    () => Math.max(before.split("\n").length, after.split("\n").length) > LINE_LIMIT,
-    [before, after],
-  );
-  const blocks = useMemo(() => (tooLarge ? [] : changeBlocks(rows)), [rows, tooLarge]);
+  const blocks = useMemo(() => changeBlocks(rows), [rows]);
 
-  const additions = tooLarge ? 0 : rows.filter((r) => r.type === "add").length;
-  const deletions = tooLarge ? 0 : rows.filter((r) => r.type === "del").length;
+  const additions = rows.filter((r) => r.type === "add").length;
+  const deletions = rows.filter((r) => r.type === "del").length;
 
   const [cursor, setCursor] = useState(0);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -82,7 +75,7 @@ export function FileDiffModal(): React.ReactElement | null {
   };
 
   const showNav =
-    diffModal.status === "ready" && !tooLarge && additions + deletions > 0 && blocks.length > 0;
+    diffModal.status === "ready" && additions + deletions > 0 && blocks.length > 0;
   const atFirst = cursor <= 0;
   const atLast = cursor >= blocks.length - 1;
 
@@ -137,17 +130,12 @@ export function FileDiffModal(): React.ReactElement | null {
           {diffModal.status === "error" && (
             <div className="diff-modal-error">{diffModal.message}</div>
           )}
-          {diffModal.status === "ready" && tooLarge && (
-            <div className="diff-modal-notice">
-              File is too large to render inline. Use <strong>Open in editor</strong> for the full diff.
-            </div>
-          )}
-          {diffModal.status === "ready" && !tooLarge && additions === 0 && deletions === 0 && (
+          {diffModal.status === "ready" && additions === 0 && deletions === 0 && (
             <div className="diff-modal-notice">
               No textual changes detected — the file may have been edited since this change.
             </div>
           )}
-          {diffModal.status === "ready" && !tooLarge && (additions > 0 || deletions > 0) && (
+          {diffModal.status === "ready" && (additions > 0 || deletions > 0) && (
             <>
               <div className="diff-stats">
                 {additions > 0 && <span className="diff-add-count">+{additions}</span>}

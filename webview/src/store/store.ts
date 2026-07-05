@@ -113,6 +113,7 @@ export interface AppState {
     | (DiffModalBase & { status: "loading" })
     | (DiffModalBase & { status: "ready"; label: string; before: string; after: string })
     | (DiffModalBase & { status: "error"; message: string });
+  fileExists: Record<string, boolean>;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setRightPanelOpen: (open: boolean) => void;
@@ -121,6 +122,7 @@ export interface AppState {
   applyChanges: (sessionId: string, messageId: string) => void;
   openFileDiffModal: (filePath: string, edits: { oldStr: string; newStr: string }[], isNewFile: boolean) => void;
   closeFileDiffModal: () => void;
+  checkFilesExist: (paths: string[]) => void;
 
   handleMessage: (msg: ExtensionToWebview) => void;
   setSelectedModel: (model: ModelSelection) => void;
@@ -226,6 +228,7 @@ const initialState = {
   sessionStatus: {} as Record<string, SessionStatusInfo>,
   queuedMessages: [] as QueuedMessage[],
   diffModal: null as AppState["diffModal"],
+  fileExists: {} as Record<string, boolean>,
   changesBaseline: {} as Record<string, string>,
 };
 
@@ -333,6 +336,10 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   closeFileDiffModal: () => set({ diffModal: null }),
+  checkFilesExist: (paths) => {
+    if (paths.length === 0) return;
+    postMessage({ type: "checkFilesExist", paths });
+  },
   enqueueMessage: (m, priority) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     set((s) => ({
@@ -592,6 +599,11 @@ export const useStore = create<AppState>((set, get) => ({
             },
           };
         });
+        break;
+      }
+
+      case "filesExist": {
+        set((s) => ({ fileExists: { ...s.fileExists, ...msg.results } }));
         break;
       }
 

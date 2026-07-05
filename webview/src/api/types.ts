@@ -415,6 +415,7 @@ export type ExtensionToWebview =
   | { type: "stats"; totalCost: number; totalTokens: { input: number; output: number; reasoning: number } }
   | { type: "context"; activeFile: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
+  | { type: "filesExist"; results: Record<string, boolean> }
   | { type: "error"; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 
@@ -434,6 +435,7 @@ export type WebviewToExtension =
   | { type: "refreshAgents" }
   | { type: "openFileDiff"; filePath: string; edits: { oldStr: string; newStr: string }[]; isNewFile: boolean }
   | { type: "getFileDiffContent"; filePath: string; edits: { oldStr: string; newStr: string }[]; isNewFile: boolean }
+  | { type: "checkFilesExist"; paths: string[] }
   | { type: "getContext" }
   | { type: "refreshSessions" }
   | { type: "refreshModels" }

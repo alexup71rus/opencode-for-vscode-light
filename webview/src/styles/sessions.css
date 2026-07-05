@@ -1,0 +1,193 @@
+/* ===== Session list ===== */
+
+.session-list-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.session-list-new {
+  padding: var(--opencode-gap) var(--opencode-gap) 4px;
+}
+
+.new-session-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.new-session-plus {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.session-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px var(--opencode-gap) var(--opencode-gap);
+}
+
+.session-group {
+  margin-bottom: var(--opencode-gap);
+}
+
+.session-group-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.55;
+  padding: 8px 4px 4px;
+}
+
+.session-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: var(--opencode-radius);
+  cursor: pointer;
+  transition: background var(--opencode-ease);
+  border: 1px solid transparent;
+}
+
+.session-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.session-item.active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.session-item.confirming {
+  background: var(--vscode-inputValidation-errorBackground, transparent);
+}
+
+.session-item-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.session-item-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.session-item-child {
+  font-size: 12px;
+}
+
+.session-item-child .session-item-title {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.session-child-mark {
+  margin-right: 4px;
+  opacity: 0.55;
+}
+
+.session-child-live {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vscode-charts-yellow, var(--vscode-editorWarning-foreground));
+  animation: pulse 1.2s infinite;
+  vertical-align: middle;
+}
+
+.session-child-agent {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  opacity: 0.85;
+}
+
+.session-confirm {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.session-delete {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.65;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  transition: opacity var(--opencode-ease), background var(--opencode-ease);
+}
+
+.session-delete::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--vscode-panel-border, currentColor);
+  opacity: 0.3;
+}
+
+.session-delete {
+  position: relative;
+}
+
+.session-delete:hover {
+  opacity: 1;
+  background: var(--vscode-inputValidation-errorBackground, transparent);
+  color: var(--vscode-errorForeground, inherit);
+}
+
+.session-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+}
+
+.session-empty-icon {
+  font-size: 26px;
+  opacity: 0.6;
+}
+
+.session-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.session-empty-sub {
+  font-size: 11px;
+  opacity: 0.75;
+}
+

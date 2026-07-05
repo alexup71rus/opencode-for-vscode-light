@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { randomBytes } from "crypto";
 import { readFileSync, existsSync } from "fs";
+import * as path from "path";
+import { stat } from "fs/promises";
 import { join } from "path";
 import type { EventEmitter } from "events";
 
@@ -319,6 +321,26 @@ export class WebviewPanelManager {
             label: "",
             error: err instanceof Error ? err.message : String(err),
           });
+        }
+        break;
+      }
+      case "checkFilesExist": {
+        try {
+          const results: Record<string, boolean> = {};
+          await Promise.all(
+            msg.paths.map(async (p) => {
+              const abs = path.isAbsolute(p) ? p : path.join(this.client.workdirPath, p);
+              try {
+                await stat(abs);
+                results[p] = true;
+              } catch {
+                results[p] = false;
+              }
+            }),
+          );
+          this.postMessage({ type: "filesExist", results });
+        } catch (err) {
+          this.reportError(err, "check files exist");
         }
         break;
       }

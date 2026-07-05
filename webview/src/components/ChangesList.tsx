@@ -17,6 +17,8 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
   const baseline = useStore((s) => s.changesBaseline[sessionId]);
   const applyChanges = useStore((s) => s.applyChanges);
   const openFileDiffModal = useStore((s) => s.openFileDiffModal);
+  const fileExists = useStore((s) => s.fileExists);
+  const checkFilesExist = useStore((s) => s.checkFilesExist);
   const [open, setOpen] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -24,6 +26,11 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
     () => extractFileChanges(messages, baseline),
     [messages, baseline],
   );
+
+  useEffect(() => {
+    if (rows.length === 0) return;
+    checkFilesExist(rows.map((r) => r.filePath));
+  }, [rows, checkFilesExist]);
 
   const totalAdd = rows.reduce((n, r) => n + r.additions, 0);
   const totalDel = rows.reduce((n, r) => n + r.deletions, 0);
@@ -75,7 +82,11 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
         <div className="changes-list">
           {rows.length === 0 && <div className="empty-hint">No file changes</div>}
           {rows.map((row) => (
-            <div key={row.filePath} className="change-row" title={row.filePath}>
+            <div
+              key={row.filePath}
+              className={`change-row${fileExists[row.filePath] === false ? " missing" : ""}`}
+              title={row.filePath}
+            >
               <button
                 className="change-main"
                 onClick={() =>
@@ -87,7 +98,7 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
                   })
                 }
               >
-                <span className={`change-status change-status-${row.isNewFile ? "added" : "modified"}`} />
+                <span className={`change-status change-status-${fileExists[row.filePath] === false ? "deleted" : row.isNewFile ? "added" : "modified"}`} />
                 <span className="change-delta">
                   {row.additions > 0 && <span className="delta-add">+{row.additions}</span>}
                   {row.deletions > 0 && <span className="delta-del">-{row.deletions}</span>}
