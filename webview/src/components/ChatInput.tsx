@@ -595,7 +595,6 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
               ) : (
                 <button className="abort-btn" onClick={abort} title="Stop generation">
                   <span className="abort-icon">■</span>
-                  <span className="abort-text">Stop</span>
                 </button>
               )
             ) : (
