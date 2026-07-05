@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { formatDuration } from "../utils";
-import { computeLineDiff, extractFilePath, asString } from "../diff";
+import { buildDiffRows, extractFilePath, asString } from "../diff";
 import type { DiffRow } from "../diff";
+import { DiffRows } from "./DiffRows";
 import type { ToolPart } from "../api/types";
 
 interface ToolCallViewProps {
@@ -106,11 +107,11 @@ function renderFileDiff(
   if (isEdit) {
     const oldStr = asString(input.oldString) ?? asString(input.old_str) ?? "";
     const newStr = asString(input.newString) ?? asString(input.new_str) ?? "";
-    rows = computeLineDiff(oldStr, newStr);
+    rows = buildDiffRows(oldStr, newStr);
     label = "Diff";
   } else {
     const content = asString(input.content) ?? "";
-    rows = content.split("\n").map((text) => ({ type: "add" as const, text }));
+    rows = buildDiffRows("", content);
     label = "New file";
   }
 
@@ -130,15 +131,7 @@ function renderFileDiff(
       </div>
       {filePath && <div className="diff-path">{filePath}</div>}
       <pre className="tool-pre diff-pre">
-        {rows.map((row, idx) => (
-          <div
-            key={idx}
-            className={row.type === "add" ? "diff-add" : row.type === "del" ? "diff-del" : "diff-ctx"}
-          >
-            {row.type === "add" ? "+" : row.type === "del" ? "-" : " "}
-            {row.text}
-          </div>
-        ))}
+        <DiffRows rows={rows} />
       </pre>
       {filePath && (
         <button

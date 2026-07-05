@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
-import { computeLineDiff, type DiffRow } from "../diff";
+import { buildDiffRows, type DiffRow } from "../diff";
+import { DiffRows } from "./DiffRows";
 
 function basename(p: string): string {
   const parts = p.split(/[\\/]/);
@@ -50,7 +51,7 @@ export function FileDiffModal(): React.ReactElement | null {
   const filePath = diffModal?.filePath ?? "";
 
   const rows = useMemo(
-    () => (ready ? computeLineDiff(before, after) : []),
+    () => (ready ? buildDiffRows(before, after) : []),
     [ready, before, after],
   );
   const blocks = useMemo(() => changeBlocks(rows), [rows]);
@@ -296,18 +297,13 @@ export function FileDiffModal(): React.ReactElement | null {
                 {deletions > 0 && <span className="diff-del-count">-{deletions}</span>}
               </div>
               <pre className="tool-pre diff-pre diff-modal-pre">
-                {rows.map((row, idx) => (
-                  <div
-                    key={idx}
-                    ref={(el) => {
-                      rowRefs.current[idx] = el;
-                    }}
-                    className={row.type === "add" ? "diff-add" : row.type === "del" ? "diff-del" : "diff-ctx"}
-                  >
-                    {row.type === "add" ? "+" : row.type === "del" ? "-" : " "}
-                    {highlightMatches(row.text, queryLower)}
-                  </div>
-                ))}
+                <DiffRows
+                  rows={rows}
+                  decorate={(t) => highlightMatches(t, queryLower)}
+                  rowRef={(i, el) => {
+                    rowRefs.current[i] = el;
+                  }}
+                />
               </pre>
             </>
           )}

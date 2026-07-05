@@ -304,13 +304,48 @@
   line-height: 1.4;
 }
 
-.diff-pre > div {
-  padding: 0 10px;
-  white-space: pre-wrap;
-  word-break: break-word;
+/* Flex diff layout: a non-selectable gutter (line number + sign) and a code
+   cell that wraps. The gutter stays aligned as a fixed column even when a long
+   line wraps to several visual rows; selecting code copies only the code. */
+.diff-rows {
   font-family: var(--vscode-editor-font-family, monospace);
 }
 
+.diff-row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.diff-gutter {
+  flex: 0 0 auto;
+  min-width: 3ch;
+  padding: 0 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-editorLineNumber-foreground, rgba(128, 128, 128, 0.6));
+  user-select: none;
+  -webkit-user-select: none;
+  border-right: 1px solid var(--vscode-editorWidget-border, transparent);
+}
+
+.diff-sign {
+  flex: 0 0 auto;
+  width: 2ch;
+  padding: 0 2px 0 6px;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.diff-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: 10px;
+}
+
+/* Row tints (whole line, first layer). */
 .diff-add {
   color: var(--vscode-diffEditor-insertedTextForeground, var(--vscode-terminal-ansiGreen, #3fb950));
   background: var(--vscode-diffEditor-insertedTextBackground, rgba(63, 185, 80, 0.15));
@@ -324,6 +359,21 @@
 .diff-ctx {
   color: var(--vscode-editorForeground);
   opacity: 0.5;
+}
+
+/* Intra-line word-level emphasis (second layer, sits on top of the row tint). */
+.diff-word-add {
+  background: rgba(63, 185, 80, 0.45);
+  background: color-mix(in srgb, var(--vscode-diffEditor-insertedTextForeground, #3fb950) 38%, transparent);
+  font-weight: 600;
+  border-radius: 2px;
+}
+
+.diff-word-del {
+  background: rgba(248, 81, 73, 0.45);
+  background: color-mix(in srgb, var(--vscode-diffEditor-removedTextForeground, #f85149) 38%, transparent);
+  font-weight: 600;
+  border-radius: 2px;
 }
 
 .diff-open-btn {
