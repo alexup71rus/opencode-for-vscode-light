@@ -263,8 +263,9 @@ export function VirtualizedBubbles({
   }, [scrollToKeyRef, scrollToKey]);
 
   const rendered: React.ReactNode[] = [];
-  for (let i = range.start; i <= range.end; i++) {
+  for (let i = range.start; i <= range.end && i < count; i++) {
     const item = items[i];
+    if (!item) break;
     rendered.push(
       <div key={item.key} data-vkey={item.key} data-idx={i} style={{ paddingBottom: ITEM_GAP, flex: "0 0 auto" }}>
         {renderItem(i)}

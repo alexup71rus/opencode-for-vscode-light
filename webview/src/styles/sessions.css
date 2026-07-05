@@ -84,40 +84,8 @@
 @keyframes session-gen-pulse {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
-}
 
-.session-generating-dots {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  pointer-events: none;
-  transition: opacity var(--opencode-ease);
-}
 
-/* Fade the dots on hover so they don't overlap the action buttons. */
-.session-item:hover > .session-generating-dots {
-  opacity: 0;
-}
-
-.session-generating-dots span {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--vscode-charts-blue, #4aa5ff);
-  opacity: 0.4;
-  animation: session-gen-bounce 1s infinite ease-in-out;
-}
-
-.session-generating-dots span:nth-child(2) { animation-delay: 0.15s; }
-.session-generating-dots span:nth-child(3) { animation-delay: 0.3s; }
-
-@keyframes session-gen-bounce {
-  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-2.5px); }
 }
 
 .session-item.confirming {

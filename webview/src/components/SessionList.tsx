@@ -252,13 +252,6 @@ export function SessionList(): React.ReactElement {
             </div>
           )}
         </div>
-        {isGenerating && (
-          <span className="session-generating-dots" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-        )}
         {isConfirming ? (
           <div className="session-confirm" onClick={(e) => e.stopPropagation()}>
             <button
