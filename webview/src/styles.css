@@ -2651,7 +2651,7 @@ code {
   height: 8px;
   border-radius: 4px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--vscode-progressBar-background, var(--vscode-editorWidget-border)) 25%, transparent);
+  background: color-mix(in srgb, var(--vscode-foreground, #888) 15%, transparent);
 }
 
 .context-bar-seg {

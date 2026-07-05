@@ -64,7 +64,7 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
             <>
               <div className="context-bar context-bar-segmented" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
                 {segs.map((s) => {
-                  const w = used > 0 ? (s.value / used) * 100 : 0;
+                  const w = limit > 0 ? (s.value / limit) * 100 : 0;
                   const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
                   return (
                     <div
