@@ -726,6 +726,35 @@ export class WebviewPanelManager {
     }
     const activeSessionId = this.sessionService.getActiveSessionId();
     if (activeSessionId) {
+      // Restore the full active-session snapshot. The live listeners in
+      // attachServiceListeners() only fire on new events, so a freshly
+      // created panel (dispose + recreate via openPanel, or a visibility
+      // toggle without retainContextWhenHidden) would otherwise render an
+      // empty chat for a session that actually has messages, an in-flight
+      // permission prompt, or a pending question-tool request.
+      const messages = this.sessionService.getMessages(activeSessionId);
+      if (messages.length > 0) {
+        this.postMessage({ type: "messages", sessionId: activeSessionId, messages });
+      }
+      this.postMessage({
+        type: "sessionStatus",
+        sessionId: activeSessionId,
+        status: this.sessionService.getStatus(activeSessionId),
+      });
+      for (const permission of this.sessionService.getPendingPermissions(activeSessionId)) {
+        this.postMessage({
+          type: "permissionRequest",
+          sessionId: activeSessionId,
+          permission,
+        });
+      }
+      for (const question of this.sessionService.getQuestionsForSession(activeSessionId)) {
+        this.postMessage({
+          type: "questionAdded",
+          sessionId: activeSessionId,
+          question,
+        });
+      }
       const todos = this.sessionService.getTodos(activeSessionId);
       if (todos.length > 0) {
         this.postMessage({ type: "todos", sessionId: activeSessionId, todos });

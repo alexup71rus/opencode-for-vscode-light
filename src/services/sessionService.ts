@@ -67,6 +67,20 @@ export class SessionService extends EventEmitter {
     return this.todosBySession.get(sessionId) ?? [];
   }
 
+  /**
+   * Pending question-tool requests scoped to a single session. Used to
+   * rebuild the active session snapshot when the webview panel is
+   * recreated (the live questionAdded events only fire once per request,
+   * so a fresh panel would otherwise miss already-pending questions).
+   */
+  getQuestionsForSession(sessionId: string): QuestionRequest[] {
+    const out: QuestionRequest[] = [];
+    for (const q of this.questions.values()) {
+      if (q.sessionID === sessionId) out.push(q);
+    }
+    return out;
+  }
+
   async fetchTodos(sessionId: string): Promise<Todo[]> {
     const todos = await this.client.getSessionTodos(sessionId);
     this.todosBySession.set(sessionId, todos);
