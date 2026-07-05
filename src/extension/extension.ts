@@ -222,12 +222,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log(`activation failed: ${message}`);
+    // If activation failed partway through, server/eventStream/sessionService
+    // may already be alive (e.g. spawned opencode serve, setInterval pollers,
+    // active SSE subscriptions). VS Code does not call deactivate() after a
+    // thrown activate(), so we must tear down manually before re-throwing —
+    // otherwise those resources leak until window reload.
+    try {
+      await cleanup();
+    } catch {
+      // Swallow secondary cleanup errors so the original failure is reported.
+    }
     vscode.window.showErrorMessage(`OCVS: OpenCode failed to start: ${message}`);
     throw err;
   }
 }
 
 export async function deactivate(): Promise<void> {
+  await cleanup();
+}
+
+/**
+ * Tear down any partially- or fully-initialised extension resources and
+ * clear the module-level references. Idempotent: safe to call from both the
+ * activation catch path (partial init) and deactivate() (full init).
+ */
+async function cleanup(): Promise<void> {
   try {
     sessionService?.stop();
   } catch {
