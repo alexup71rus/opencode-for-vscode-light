@@ -2,7 +2,40 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { dayBucket } from "../utils";
-import type { SessionWithMeta } from "../api/types";
+import type { MessageWithParts, SessionWithMeta } from "../api/types";
+
+// Pagination caps. Top-level chats show 30 then "Load more". Subagent threads
+// always show active (busy) children plus those spawned in the current or
+// previous assistant turn; the older ones page in by 3. Each "Load more" click
+// reveals exactly one page so the list grows predictably.
+const ROOT_PAGE = 30;
+const KID_PAGE = 3;
+
+// Count subagent invocations in the last two assistant turns (turn boundary =
+// a user message). Used to decide which children are "recent" and thus always
+// visible: the newest N children pair positionally with the newest N invocations.
+function recentSubagentCount(messages: MessageWithParts[], subagentTools: Set<string>): number {
+  if (messages.length === 0) return 0;
+  let userSeen = 0;
+  let fromIdx = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].info.role === "user") {
+      userSeen++;
+      if (userSeen === 2) {
+        fromIdx = i;
+        break;
+      }
+    }
+  }
+  let count = 0;
+  for (let i = fromIdx; i < messages.length; i++) {
+    for (const p of messages[i].parts) {
+      if (p.type === "subtask") count++;
+      else if (p.type === "tool" && subagentTools.has(p.tool)) count++;
+    }
+  }
+  return count;
+}
 
 export function SessionList(): React.ReactElement {
   const sessions = useStore((s) => s.sessions);
@@ -13,6 +46,14 @@ export function SessionList(): React.ReactElement {
   const search = useStore((s) => s.sessionSearch);
   const setSearch = useStore((s) => s.setSessionSearch);
   const sessionStatus = useStore((s) => s.sessionStatus);
+  const agents = useStore((s) => s.agents);
+  const subagentToolNames = useMemo(() => {
+    const names = new Set<string>(["task"]);
+    for (const a of agents) {
+      if (a.mode === "subagent" || a.mode === "all") names.add(a.name);
+    }
+    return names;
+  }, [agents]);
 
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -75,6 +116,8 @@ export function SessionList(): React.ReactElement {
   // chevron. We force-open the ancestors of the active session so the current
   // selection is always visible.
   const [expandedKids, setExpandedKids] = useState<Record<string, boolean>>({});
+  const [visibleRoots, setVisibleRoots] = useState(ROOT_PAGE);
+  const [extraKids, setExtraKids] = useState<Record<string, number>>({});
   const forcedOpen = useMemo(() => {
     const set = new Set<string>();
     let cur = sessions.find((s) => s.id === activeSessionId);
@@ -97,9 +140,14 @@ export function SessionList(): React.ReactElement {
 
   const sortedUnpinned = [...unpinned].sort((a, b) => b.time.updated - a.time.updated);
   const sortedPinned = [...pinned].sort((a, b) => b.time.updated - a.time.updated);
+  // Cap the top-level list to a page of the most-recent chats (pinned are
+  // always shown above, beyond the cap). Search ignores the cap — you want all
+  // matches — so only slice while browsing.
+  const cappedUnpinned = searching ? sortedUnpinned : sortedUnpinned.slice(0, visibleRoots);
+  const hasMoreRoots = !searching && sortedUnpinned.length > cappedUnpinned.length;
 
   const groups = new Map<string, SessionWithMeta[]>();
-  for (const ses of sortedUnpinned) {
+  for (const ses of cappedUnpinned) {
     const bucket = dayBucket(ses.time.updated);
     const arr = groups.get(bucket) ?? [];
     arr.push(ses);
@@ -261,12 +309,50 @@ export function SessionList(): React.ReactElement {
   };
 
   const renderTree = (ses: SessionWithMeta, depth = 0): React.ReactElement => {
-    const kids = searching ? [] : childrenByParent.get(ses.id) ?? [];
+    const allKids = searching ? [] : childrenByParent.get(ses.id) ?? [];
     const showKids = searching || isParentOpen(ses.id);
+    if (!showKids || allKids.length === 0) {
+      return <Fragment key={ses.id}>{renderSession(ses, depth)}</Fragment>;
+    }
+    // Always-visible ("guaranteed") children: the active selection, any child
+    // still running (busy), and the most recent ones — those spawned in the
+    // parent's current or previous assistant turn. The older, archival children
+    // page in from the bottom in pages of KID_PAGE via "Load more". Children are
+    // sorted newest-first, so the recent ones sit at the top and the oldest
+    // collapse at the bottom under the button.
+    const recentCount = recentSubagentCount(messagesBySession[ses.id] ?? [], subagentToolNames);
+    let budget = KID_PAGE + (extraKids[ses.id] ?? 0);
+    const visibleKids: SessionWithMeta[] = [];
+    let hidden = 0;
+    for (let i = 0; i < allKids.length; i++) {
+      const k = allKids[i];
+      const guaranteed =
+        k.id === activeSessionId ||
+        sessionStatus[k.id]?.type === "busy" ||
+        i < recentCount;
+      if (guaranteed || budget > 0) {
+        if (!guaranteed) budget--;
+        visibleKids.push(k);
+      } else {
+        hidden++;
+      }
+    }
     return (
       <Fragment key={ses.id}>
         {renderSession(ses, depth)}
-        {showKids && kids.map((k) => renderTree(k, depth + 1))}
+        {visibleKids.map((k) => renderTree(k, depth + 1))}
+        {hidden > 0 && (
+          <div className="session-load-more-wrap" style={{ paddingLeft: 8 + (depth + 1) * 14 }}>
+            <button
+              className="session-load-more"
+              onClick={() =>
+                setExtraKids((m) => ({ ...m, [ses.id]: (m[ses.id] ?? 0) + KID_PAGE }))
+              }
+            >
+              Load more ({hidden})
+            </button>
+          </div>
+        )}
       </Fragment>
     );
   };
@@ -327,6 +413,14 @@ export function SessionList(): React.ReactElement {
                 {items.map((s) => renderTree(s))}
               </div>
             ))}
+            {hasMoreRoots && (
+              <button
+                className="session-load-more session-load-more-root"
+                onClick={() => setVisibleRoots((v) => v + ROOT_PAGE)}
+              >
+                Load more ({sortedUnpinned.length - cappedUnpinned.length})
+              </button>
+            )}
           </>
         )}
       </div>
