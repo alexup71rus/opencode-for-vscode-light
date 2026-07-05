@@ -163,6 +163,19 @@ export class OpenCodeClient {
     if (res.error) throw toError(res.error);
   }
 
+  async revertMessage(sessionId: string, messageID: string): Promise<void> {
+    // sdk.session.revert removes the given message and everything after it
+    // AND reverts file changes made in those messages (snapshot-based). This
+    // is the server-side primitive behind opencode's `/undo`. Returns the
+    // updated Session; we only need the side effect.
+    const res = await this.sdk.session.revert({
+      path: { id: sessionId },
+      query: { directory: this.workdir },
+      body: { messageID },
+    } as never);
+    if (res.error) throw toError(res.error);
+  }
+
   async replyPermission(
     sessionId: string,
     permissionId: string,

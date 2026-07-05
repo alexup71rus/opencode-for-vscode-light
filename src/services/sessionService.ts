@@ -190,6 +190,45 @@ export class SessionService extends EventEmitter {
     await this.client.abortSession(this.activeSessionId);
   }
 
+  async editMessage(
+    sessionId: string,
+    messageID: string,
+    text: string,
+    options?: SendMessageOptions,
+    attachments?: MessageAttachment[],
+  ): Promise<void> {
+    // ChatGPT-style "edit & resend": truncate the conversation at messageID
+    // (removing it and everything after, reverting file changes) then send the
+    // edited text as a fresh turn. Implemented as revert + promptAsync.
+    // Server's revert rejects with SessionBusyError if the session is active,
+    // so abort first and wait for idle.
+    const status = this.statusBySession.get(sessionId);
+    if (status?.type === "busy" || status?.type === "retry") {
+      await this.client.abortSession(sessionId);
+      await this.waitForIdle(sessionId, 5000);
+    }
+    await this.client.revertMessage(sessionId, messageID);
+    const merged = this.mergeAttachments(undefined, attachments);
+    await this.client.sendMessage(sessionId, text, options, merged);
+  }
+
+  private waitForIdle(sessionId: string, timeoutMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        this.off("sessionStatus", handler);
+        clearTimeout(timer);
+        resolve();
+      };
+      const handler = (payload: { sessionId: string; status: SessionStatusInfo }) => {
+        if (payload.sessionId === sessionId && payload.status.type === "idle") {
+          done();
+        }
+      };
+      const timer = setTimeout(done, timeoutMs);
+      this.on("sessionStatus", handler);
+    });
+  }
+
   async deleteSession(sessionId: string): Promise<void> {
     await this.client.deleteSession(sessionId);
     this.removeSessionState(sessionId);
@@ -307,6 +346,7 @@ export class SessionService extends EventEmitter {
     this.eventStream.on("session.idle", this.handleSessionIdle);
     this.eventStream.on("session.error", this.handleSessionError);
     this.eventStream.on("message.updated", this.handleMessageUpdated);
+    this.eventStream.on("message.removed", this.handleMessageRemoved);
     this.eventStream.on("message.part.updated", this.handleMessagePartUpdated);
     this.eventStream.on("message.part.delta", this.handleMessagePartDelta);
     this.eventStream.on("message.part.removed", this.handleMessagePartRemoved);
@@ -324,6 +364,7 @@ export class SessionService extends EventEmitter {
     this.eventStream.off("session.idle", this.handleSessionIdle);
     this.eventStream.off("session.error", this.handleSessionError);
     this.eventStream.off("message.updated", this.handleMessageUpdated);
+    this.eventStream.off("message.removed", this.handleMessageRemoved);
     this.eventStream.off("message.part.updated", this.handleMessagePartUpdated);
     this.eventStream.off("message.part.delta", this.handleMessagePartDelta);
     this.eventStream.off("message.part.removed", this.handleMessagePartRemoved);
@@ -379,6 +420,20 @@ export class SessionService extends EventEmitter {
     if (idx >= 0) list[idx] = entry;
     else list.push(entry);
     this.emit("messagesChanged", sessionId);
+  };
+
+  private handleMessageRemoved = (payload: { sessionID: string; messageID: string }): void => {
+    const { sessionID, messageID } = payload;
+    if (!sessionID || !messageID) return;
+    const list = this.messagesBySession.get(sessionID);
+    if (!list) return;
+    // Server's revert/removeMessage emits one event per removed message; filter
+    // by id so any order arrives correctly. No need to also drop "subsequent"
+    // messages client-side — the server emits events for each of them too.
+    const next = list.filter((m) => m.info.id !== messageID);
+    if (next.length === list.length) return;
+    this.messagesBySession.set(sessionID, next);
+    this.emit("messageRemoved", { sessionId: sessionID, messageID });
   };
 
   private ensureMessage(sessionId: string, messageID: string): MessageWithParts | null {

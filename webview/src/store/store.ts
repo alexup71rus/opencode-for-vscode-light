@@ -396,6 +396,33 @@ export const useStore = create<AppState>((set, get) => ({
         });
         break;
 
+      case "messageRemoved": {
+        // A message was deleted server-side (revert/deleteMessage). Drop it from
+        // the list. If the changes-baseline for this session points at a message
+        // that no longer exists, clear it so the Changes panel doesn't anchor to
+        // stale state. (dropPendingForSession not needed: part events for the
+        // removed message will simply no-op via upsertPart.)
+        set((s) => {
+          const list = s.messagesBySession[msg.sessionId];
+          if (!list) return s;
+          const next = list.filter((m) => m.info.id !== msg.messageID);
+          if (next.length === list.length) return s;
+          const baseline = s.changesBaseline[msg.sessionId];
+          const baselineStillPresent =
+            !baseline || next.some((m) => m.info.id === baseline);
+          const changesBaseline = baselineStillPresent
+            ? s.changesBaseline
+            : Object.fromEntries(
+                Object.entries(s.changesBaseline).filter(([k]) => k !== msg.sessionId),
+              );
+          return {
+            messagesBySession: { ...s.messagesBySession, [msg.sessionId]: next },
+            changesBaseline,
+          };
+        });
+        break;
+      }
+
       case "permissionRequest":
         set((s) => ({
           pendingPermissions: s.pendingPermissions.some((p) => p.id === msg.permission.id)

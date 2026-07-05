@@ -359,7 +359,15 @@ export const MessageBubble = memo(function MessageBubble({
   const saveEdit = () => {
     const trimmed = draft.trim();
     if (trimmed) {
-      postMessage({ type: "sendMessage", sessionId, text: trimmed, options: buildSendOptions() });
+      // Real "edit & resend": server reverts (truncates from this message +
+      // reverts file changes) then sends the edited text as a new turn.
+      postMessage({
+        type: "editMessage",
+        sessionId,
+        messageID: message.info.id,
+        text: trimmed,
+        options: buildSendOptions(),
+      });
     }
     setEditing(false);
     setDraft("");
@@ -412,7 +420,7 @@ export const MessageBubble = memo(function MessageBubble({
                   Cancel
                 </button>
                 <button className="btn btn-primary btn-xs" onClick={saveEdit} disabled={!draft.trim()}>
-                  Send edited
+                  Save &amp; resend
                 </button>
               </div>
             </div>

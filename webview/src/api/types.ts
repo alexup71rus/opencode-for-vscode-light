@@ -397,6 +397,7 @@ export type ExtensionToWebview =
   | { type: "messages"; sessionId: string; messages: MessageWithParts[] }
   | { type: "messagePartUpdated"; sessionId: string; part: Part; delta?: string }
   | { type: "messagePartRemoved"; sessionId: string; messageID: string; partID: string }
+  | { type: "messageRemoved"; sessionId: string; messageID: string }
   | { type: "permissionRequest"; sessionId: string; permission: Permission }
   | { type: "permissionReplied"; sessionId: string; permissionID: string; response?: string }
   | { type: "questionAdded"; sessionId: string; question: QuestionRequest }
@@ -422,6 +423,7 @@ export type WebviewToExtension =
   | { type: "deleteSession"; sessionId: string }
   | { type: "renameSession"; sessionId: string; title: string }
   | { type: "sendMessage"; sessionId: string; text: string; context?: AttachedContext; options?: SendMessageOptions; attachments?: MessageAttachment[] }
+  | { type: "editMessage"; sessionId: string; messageID: string; text: string; options?: SendMessageOptions; attachments?: MessageAttachment[] }
   | { type: "abortSession"; sessionId: string }
   | { type: "replyPermission"; sessionId: string; permissionId: string; decision: "once" | "always" | "reject" }
   | { type: "replyQuestion"; requestId: string; answers: string[][] }

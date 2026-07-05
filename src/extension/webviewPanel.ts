@@ -199,6 +199,20 @@ export class WebviewPanelManager {
         }
         break;
       }
+      case "editMessage": {
+        try {
+          await this.sessionService.editMessage(
+            msg.sessionId,
+            msg.messageID,
+            msg.text,
+            msg.options ?? undefined,
+            msg.attachments,
+          );
+        } catch (err) {
+          this.reportError(err, "edit message");
+        }
+        break;
+      }
       case "abortSession": {
         try {
           await this.sessionService.abortSession();
@@ -425,6 +439,16 @@ export class WebviewPanelManager {
         sessionId: payload.sessionId,
         messageID: payload.messageID,
         partID: payload.partID,
+      });
+    });
+
+    this.addListener(session, "messageRemoved", (...args) => {
+      const payload = args[0] as { sessionId: string; messageID: string };
+      if (!payload?.sessionId) return;
+      this.postMessage({
+        type: "messageRemoved",
+        sessionId: payload.sessionId,
+        messageID: payload.messageID,
       });
     });
 
