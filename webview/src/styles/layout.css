@@ -145,25 +145,6 @@
   opacity: 1;
 }
 
-.header-toggle-badge {
-  font-size: 9px;
-  font-weight: 700;
-  min-width: 13px;
-  height: 13px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-toggle.active .header-toggle-badge {
-  background: var(--vscode-badge-foreground);
-  color: var(--vscode-badge-background);
-}
-
 .header-status {
   display: inline-flex;
   align-items: center;

@@ -43,29 +43,6 @@ export default function App(): React.ReactElement {
     }
   }, [sessionStatusMap]);
 
-  // Changed-file count for the Inspect toggle badge. Derived from the active
-  // session's tool calls (the server's /file/status endpoint is empty on
-  // opencode 1.17.x), so it reflects what the agent actually touched.
-  const changedFileCount = useStore((s) => {
-    if (!activeSessionId) return 0;
-    const msgs = s.messagesBySession[activeSessionId];
-    if (!msgs) return 0;
-    const files = new Set<string>();
-    for (const m of msgs) {
-      for (const p of m.parts) {
-        if (p.type !== "tool") continue;
-        const st = p.state as { status?: string; input?: Record<string, unknown> };
-        if (st.status === "error") continue;
-        const input = st.input;
-        if (!input) continue;
-        const tool = p.tool.toLowerCase();
-        if (tool !== "edit" && tool !== "write" && tool !== "str_replace" && tool !== "replace") continue;
-        const fp = (input.filePath ?? input.file_path ?? input.path) as string | undefined;
-        if (fp) files.add(fp);
-      }
-    }
-    return files.size;
-  });
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
   const sidebarWidth = useStore((s) => s.sidebarWidth);
@@ -84,7 +61,6 @@ export default function App(): React.ReactElement {
   const agents = useStore((s) => s.agents);
   const messagesBySession = useStore((s) => s.messagesBySession);
 
-  const hasChanges = changedFileCount > 0;
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const parentSession = activeSession?.parentID
     ? sessions.find((s) => s.id === activeSession.parentID)
@@ -339,9 +315,6 @@ export default function App(): React.ReactElement {
             onClick={toggleRightPanel}
           >
             <InspectIcon />
-            {hasChanges && (
-              <span className="header-toggle-badge">{changedFileCount}</span>
-            )}
           </button>
           <button
             className="header-toggle"
