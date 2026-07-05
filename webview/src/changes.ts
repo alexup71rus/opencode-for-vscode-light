@@ -1,5 +1,5 @@
 import type { MessageWithParts } from "./api/types";
-import { asString, extractFilePath } from "./diff";
+import { asString, computeLineDiff, extractFilePath } from "./diff";
 
 export interface EditPatch {
   oldStr: string;
@@ -62,13 +62,14 @@ export function extractFileChanges(messages: MessageWithParts[], afterMessageId?
         const oldStr = asString(input.oldString) ?? asString(input.old_str) ?? "";
         const newStr = asString(input.newString) ?? asString(input.new_str) ?? "";
         entry.edits.push({ oldStr, newStr });
-        const oldLines = oldStr ? oldStr.split("\n").length : 0;
-        const newLines = newStr ? newStr.split("\n").length : 0;
-        // Rough: net added/removed lines for this hunk.
-        if (newLines >= oldLines) {
-          entry.additions += newLines - oldLines;
-        } else {
-          entry.deletions += oldLines - newLines;
+        // Use the same Myers line diff as ToolCallView and FileDiffModal so
+        // the sidebar totals match what every other renderer shows. Counting
+        // add/del rows independently means a 1-line replacement registers as
+        // +1/-1 (not 0/0 as the old net-delta heuristic did).
+        const rows = computeLineDiff(oldStr, newStr);
+        for (const row of rows) {
+          if (row.type === "add") entry.additions++;
+          else if (row.type === "del") entry.deletions++;
         }
       } else {
         // write — new file (or full overwrite). Treat as all-added.

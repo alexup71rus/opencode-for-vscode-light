@@ -22,15 +22,27 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
   const [open, setOpen] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const rows: FileChange[] = useMemo(
+  const allRows: FileChange[] = useMemo(
     () => extractFileChanges(messages, baseline),
     [messages, baseline],
   );
 
   useEffect(() => {
-    if (rows.length === 0) return;
-    checkFilesExist(rows.map((r) => r.filePath));
-  }, [rows, checkFilesExist]);
+    if (allRows.length === 0) return;
+    checkFilesExist(allRows.map((r) => r.filePath));
+  }, [allRows, checkFilesExist]);
+
+  // Files that were created in-session (write tool → isNewFile) and have
+  // since been removed from disk (e.g. via `rm` through the bash tool) are
+  // dropped from the list entirely. opencode has no dedicated delete tool,
+  // so disk presence (checked above via checkFilesExist) is the only signal
+  // that a deletion happened. Pre-existing files that were deleted still
+  // appear (isNewFile=false) with the "deleted" status, which is the
+  // correct behaviour for surfacing real losses.
+  const rows: FileChange[] = useMemo(
+    () => allRows.filter((r) => !(r.isNewFile && fileExists[r.filePath] === false)),
+    [allRows, fileExists],
+  );
 
   const totalAdd = rows.reduce((n, r) => n + r.additions, 0);
   const totalDel = rows.reduce((n, r) => n + r.deletions, 0);
