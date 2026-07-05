@@ -39,6 +39,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const [selTarget, setSelTarget] = useState<number | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachQuery, setAttachQuery] = useState("");
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 800px)").matches);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
 
@@ -63,6 +64,13 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
       setSending(false);
     }
   }, [sending, isBusy]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 800px)");
+    const handler = (e: MediaQueryListEvent) => setNarrow(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   useEffect(() => {
     if (!sending) return;
@@ -558,8 +566,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             />
           </div>
           <div className="chat-input-actions">
-            <ModelSelector compact />
-            <VariantSelector />
+            {!narrow && <ModelSelector compact />}
+            {!narrow && <VariantSelector />}
             {isBusy ? (
               text.trim() ? (
                 <>
@@ -605,6 +613,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             )}
           </div>
           <div className="chat-input-meta-right">
+            {narrow && <ModelSelector compact />}
+            {narrow && <VariantSelector />}
             <AgentSelector compact />
             {totalCost > 0 && (
               <span className="meta-chip" title="Total cost (all sessions)">

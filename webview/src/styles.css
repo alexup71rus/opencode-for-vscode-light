@@ -2183,6 +2183,19 @@ code {
   height: 6px;
 }
 
+.chat-input-meta-right .model-selector.compact .model-selector-button,
+.chat-input-meta-right .variant-selector .variant-selector-button {
+  padding: 2px 4px;
+  font-size: 10px;
+  max-width: 130px;
+  opacity: 0.7;
+}
+
+.chat-input-meta-right .model-selector.compact .model-selector-button:hover,
+.chat-input-meta-right .variant-selector .variant-selector-button:hover {
+  opacity: 1;
+}
+
 .meta-chip {
   opacity: 0.5;
   transition: opacity var(--opencode-ease);
