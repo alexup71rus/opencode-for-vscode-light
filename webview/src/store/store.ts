@@ -98,11 +98,13 @@ export interface AppState {
   rightPanelOpen: boolean;
   sidebarWidth: number;
   rightWidth: number;
+  recentPanelHidden: boolean;
   queuedMessages: QueuedMessage[];
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
+  setRecentPanelHidden: (hidden: boolean) => void;
 
   handleMessage: (msg: ExtensionToWebview) => void;
   setSelectedModel: (model: ModelSelection) => void;
@@ -221,6 +223,7 @@ interface PersistedUi {
   selectedAgent?: string | null;
   sidebarWidth?: number;
   rightWidth?: number;
+  recentPanelHidden?: boolean;
 }
 
 function loadPersistedUi(): PersistedUi {
@@ -270,6 +273,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedAgent: persistedUi.selectedAgent ?? null,
   sidebarWidth: persistedUi.sidebarWidth ?? 230,
   rightWidth: persistedUi.rightWidth ?? 250,
+  recentPanelHidden: persistedUi.recentPanelHidden ?? false,
 
   setSidebarOpen: (open) => {
     savePersistedUi({ sidebarOpen: open });
@@ -293,6 +297,10 @@ export const useStore = create<AppState>((set, get) => ({
   setRightWidth: (w, persist = true) => {
     if (persist) savePersistedUi({ rightWidth: w });
     set({ rightWidth: w });
+  },
+  setRecentPanelHidden: (hidden) => {
+    savePersistedUi({ recentPanelHidden: hidden });
+    set({ recentPanelHidden: hidden });
   },
   enqueueMessage: (m, priority) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

@@ -3,7 +3,6 @@ import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { ModelSelector } from "./ModelSelector";
 import { VariantSelector } from "./VariantSelector";
-import { AgentSelector } from "./AgentSelector";
 import { ContextChips } from "./ContextChips";
 import { formatCost, formatTokenCount } from "../utils";
 import { buildSendOptions } from "../compose";
@@ -558,7 +557,6 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             />
           </div>
           <div className="chat-input-actions">
-            <AgentSelector compact />
             <ModelSelector compact />
             <VariantSelector />
             {isBusy ? (

@@ -12,6 +12,8 @@ import { InspectPanel } from "./components/InspectPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { HelpModal } from "./components/HelpModal";
 import { Logo } from "./components/Logo";
+import { RecentSessionsPanel } from "./components/RecentSessionsPanel";
+import { AgentBar } from "./components/AgentBar";
 
 export default function App(): React.ReactElement {
   useVsCodeEvent();
@@ -405,6 +407,7 @@ export default function App(): React.ReactElement {
               <ChatView sessionId={activeSessionId} />
               {activeIsChild ? null : (
                 <>
+                  <AgentBar />
                   <QueueBar />
                   <ChatInput sessionId={activeSessionId} />
                   <QuestionOverlay sessionId={activeSessionId} />
@@ -422,6 +425,7 @@ export default function App(): React.ReactElement {
               >
                 + New Session
               </button>
+              {!sidebarOpen && <RecentSessionsPanel />}
             </div>
           )}
         </main>

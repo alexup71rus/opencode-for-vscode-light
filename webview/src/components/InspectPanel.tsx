@@ -36,13 +36,23 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   if (!last) return null;
 
   const tokens = last.tokens;
-  const used =
-    tokens.input + tokens.cache.read + tokens.cache.write;
+  const newInput = tokens.input + tokens.cache.write;
+  const cached = tokens.cache.read;
+  const reasoning = tokens.reasoning;
+  const used = newInput + cached + reasoning;
 
   const provider = providers.find((p) => p.id === last.providerID);
   const model = provider?.models.find((m) => m.modelID === last.modelID);
   const limit = model?.limit.context ?? 0;
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+
+  const segs = [
+    { key: "new", value: newInput, color: "var(--vscode-charts-blue, #4aa5ff)", label: "New input" },
+    { key: "cache", value: cached, color: "var(--vscode-charts-purple, #b079e0)", label: "Cached" },
+    ...(reasoning > 0
+      ? [{ key: "reason", value: reasoning, color: "var(--vscode-charts-orange, #e07b00)", label: "Reasoning" }]
+      : []),
+  ];
 
   return (
     <div className="panel-section">
@@ -55,12 +65,36 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
         <div className="context-usage">
           {limit > 0 ? (
             <>
-              <div className="context-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                <div className="context-bar-fill" style={{ width: `${pct}%` }} />
+              <div className="context-bar context-bar-segmented" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+                {segs.map((s) => {
+                  const w = used > 0 ? (s.value / used) * 100 : 0;
+                  const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
+                  return (
+                    <div
+                      key={s.key}
+                      className="context-bar-seg"
+                      style={{ width: `${w}%`, background: s.color }}
+                      title={`${s.label}: ${formatTokenCount(s.value)} (${segPctOfLimit}% of limit)`}
+                    />
+                  );
+                })}
               </div>
               <div className="context-usage-label">
                 {used.toLocaleString()} / {limit.toLocaleString()} ({pct}%)
               </div>
+              <ul className="context-legend">
+                {segs.map((s) => {
+                  const segPctOfLimit = limit > 0 ? Math.round((s.value / limit) * 100) : 0;
+                  return (
+                    <li key={s.key} className="context-legend-row" title={`${s.label}: ${formatTokenCount(s.value)} (${segPctOfLimit}% of limit)`}>
+                      <span className="context-legend-dot" style={{ background: s.color }} />
+                      <span className="context-legend-label">{s.label}</span>
+                      <span className="context-legend-value">{formatTokenCount(s.value)}</span>
+                      <span className="context-legend-pct">{segPctOfLimit}%</span>
+                    </li>
+                  );
+                })}
+              </ul>
             </>
           ) : (
             <div className="context-usage-label">{formatTokenCount(used)} tokens</div>

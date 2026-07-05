@@ -6,6 +6,7 @@ import { buildSendOptions } from "../compose";
 import { MessageBubble } from "./MessageBubble";
 import { MessageNavRail } from "./MessageNavRail";
 import { Logo } from "./Logo";
+import { ContextIndicator } from "./ContextIndicator";
 
 interface ChatViewProps {
   sessionId: string;
@@ -278,6 +279,7 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
   return (
     <div className="chat-view">
       <MessageNavRail sessionId={sessionId} scrollRef={scrollRef} />
+      <ContextIndicator sessionId={sessionId} />
       <div className="chat-main">
         <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
         <div className="chat-messages">

@@ -28,6 +28,8 @@ export function SettingsPanel(): React.ReactElement | null {
   const hiddenProviders = useStore((s) => s.hiddenProviders);
   const toggleProviderHidden = useStore((s) => s.toggleProviderHidden);
   const config = useStore((s) => s.config);
+  const recentPanelHidden = useStore((s) => s.recentPanelHidden);
+  const setRecentPanelHidden = useStore((s) => s.setRecentPanelHidden);
 
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>(settings.enabledTools);
@@ -257,6 +259,18 @@ export function SettingsPanel(): React.ReactElement | null {
                     onChange={setDraftSendOnEnter}
                     title="Send on Enter"
                     hint="On: Enter sends the message, Shift+Enter inserts a newline. Off: ⌘/Ctrl+Enter sends, Enter inserts a newline. ⌘/Ctrl+Enter always sends regardless of this setting."
+                  />
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <div className="settings-section-title">Empty screen</div>
+                <div className="settings-field">
+                  <ToggleRow
+                    checked={!recentPanelHidden}
+                    onChange={(v) => setRecentPanelHidden(!v)}
+                    title="Show recent sessions"
+                    hint='When the sidebar is hidden and no session is active, show up to 3 recent sessions on the empty screen. Dismissable inline via ✕.'
                   />
                 </div>
               </section>

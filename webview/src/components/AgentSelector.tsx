@@ -19,6 +19,17 @@ const MODE_LABEL: Record<AgentInfo["mode"], string> = {
   subagent: "Subagent",
 };
 
+const AGENT_DOT_COLOR: Record<string, string> = {
+  build: "var(--vscode-charts-orange, #e07b00)",
+  plan: "var(--vscode-charts-yellow, #e2c607)",
+};
+
+function dotColorFor(name: string | undefined, serverColor?: string): string | undefined {
+  if (serverColor) return serverColor;
+  if (!name) return undefined;
+  return AGENT_DOT_COLOR[name.toLowerCase()];
+}
+
 export function AgentSelector({ compact }: AgentSelectorProps): React.ReactElement | null {
   const agents = useStore((s) => s.agents);
   const selectedAgent = useStore((s) => s.selectedAgent);
@@ -94,7 +105,10 @@ export function AgentSelector({ compact }: AgentSelectorProps): React.ReactEleme
       >
         <span
           className="agent-selector-dot"
-          style={current?.color ? { background: current.color } : undefined}
+          style={(() => {
+            const c = dotColorFor(current?.name, current?.color);
+            return c ? { background: c } : undefined;
+          })()}
         />
         <span className="agent-selector-label">{currentLabel}</span>
         <span className="agent-selector-caret">▾</span>
@@ -129,7 +143,10 @@ export function AgentSelector({ compact }: AgentSelectorProps): React.ReactEleme
                     >
                       <span
                         className="agent-option-dot"
-                        style={a.color ? { background: a.color } : undefined}
+                        style={(() => {
+                          const c = dotColorFor(a.name, a.color);
+                          return c ? { background: c } : undefined;
+                        })()}
                       />
                       <span className="agent-option-text">
                         <span className="agent-option-name">{a.name}</span>
