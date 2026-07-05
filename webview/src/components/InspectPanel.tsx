@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
-import { formatTokenCount } from "../utils";
+import { formatTokenCount, findLastAssistantWithTokens } from "../utils";
 import { ChangesList } from "./ChangesList";
 import { SkillsView } from "./SkillsView";
-import type { AssistantMessage, McpServerStatus, MessageWithParts } from "../api/types";
+import type { McpServerStatus } from "../api/types";
 
 interface InspectPanelProps {
   sessionId: string;
@@ -36,10 +36,10 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   if (!last) return null;
 
   const tokens = last.tokens;
-  const newInput = tokens.input + tokens.cache.write;
+  if (!tokens) return null;
+  const fresh = tokens.input + tokens.cache.write;
   const cached = tokens.cache.read;
-  const reasoning = tokens.reasoning;
-  const used = newInput + cached + reasoning;
+  const used = fresh + cached;
 
   const provider = providers.find((p) => p.id === last.providerID);
   const model = provider?.models.find((m) => m.modelID === last.modelID);
@@ -47,11 +47,8 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
   const segs = [
-    { key: "new", value: newInput, color: "var(--vscode-charts-blue, #4aa5ff)", label: "New input" },
+    { key: "fresh", value: fresh, color: "var(--vscode-charts-blue, #4aa5ff)", label: "Fresh input" },
     { key: "cache", value: cached, color: "var(--vscode-charts-purple, #b079e0)", label: "Cached" },
-    ...(reasoning > 0
-      ? [{ key: "reason", value: reasoning, color: "var(--vscode-charts-orange, #e07b00)", label: "Reasoning" }]
-      : []),
   ];
 
   return (
@@ -94,6 +91,17 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
                     </li>
                   );
                 })}
+                {tokens.reasoning > 0 && (
+                  <li
+                    className="context-legend-row context-legend-aux"
+                    title={`Reasoning (output, not counted toward input context): ${formatTokenCount(tokens.reasoning)}`}
+                  >
+                    <span className="context-legend-dot" style={{ background: "var(--vscode-charts-orange, #e07b00)" }} />
+                    <span className="context-legend-label">Reasoning (output)</span>
+                    <span className="context-legend-value">{formatTokenCount(tokens.reasoning)}</span>
+                    <span className="context-legend-pct" aria-hidden="true">—</span>
+                  </li>
+                )}
               </ul>
             </>
           ) : (
@@ -192,22 +200,6 @@ function LspServers(): React.ReactElement | null {
       )}
     </div>
   );
-}
-
-function findLastAssistantWithTokens(
-  messages: MessageWithParts[] | undefined,
-): AssistantMessage | null {
-  if (!messages) return null;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const info = messages[i].info;
-    if (info.role === "assistant" && info.tokens) {
-      const t = info.tokens;
-      if (t.input + t.output + t.reasoning + t.cache.read + t.cache.write > 0) {
-        return info;
-      }
-    }
-  }
-  return null;
 }
 
 function todoIcon(status: string): string {

@@ -2704,6 +2704,24 @@ code {
   text-align: right;
 }
 
+.context-legend-aux {
+  opacity: 0.7;
+  border-top: 1px dashed var(--vscode-panel-border, rgba(128, 128, 128, 0.18));
+  margin-top: 3px;
+  padding-top: 4px;
+}
+
+.context-legend-aux .context-legend-pct {
+  opacity: 0.4;
+}
+
+.ctx-tip-aux {
+  opacity: 0.7;
+  border-top: 1px dashed var(--vscode-panel-border, rgba(128, 128, 128, 0.2));
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
 .context-usage-label {
   font-size: 11px;
   opacity: 0.75;

@@ -51,3 +51,31 @@ export function basename(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/");
   return parts[parts.length - 1] || path;
 }
+
+interface TokenizedMessage {
+  role: string;
+  providerID?: string;
+  modelID?: string;
+  tokens?: {
+    input: number;
+    output: number;
+    reasoning: number;
+    cache: { read: number; write: number };
+  };
+}
+
+export function findLastAssistantWithTokens<T extends { info: TokenizedMessage }>(
+  messages: T[] | undefined,
+): TokenizedMessage | null {
+  if (!messages) return null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const info = messages[i].info;
+    if (info.role === "assistant" && info.tokens) {
+      const t = info.tokens;
+      if (t.input + t.output + t.reasoning + t.cache.read + t.cache.write > 0) {
+        return info;
+      }
+    }
+  }
+  return null;
+}
