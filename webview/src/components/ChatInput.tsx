@@ -39,9 +39,10 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const [selTarget, setSelTarget] = useState<number | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachQuery, setAttachQuery] = useState("");
-  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 800px)").matches);
+  const [narrow, setNarrow] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   const activeFile = useStore((s) => s.activeFile);
   const selection = useStore((s) => s.selection);
@@ -66,10 +67,15 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   }, [sending, isBusy]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 800px)");
-    const handler = (e: MediaQueryListEvent) => setNarrow(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setNarrow(w < 800);
+    });
+    ro.observe(el);
+    setNarrow(el.clientWidth < 800);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -435,7 +441,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const lineCount = Math.max(1, text.split("\n").length);
 
   return (
-    <div className="chat-input-wrap">
+    <div className="chat-input-wrap" ref={wrapRef}>
       <div className="chat-input-inner">
         {hasContext && (
           <ContextChips
@@ -606,7 +612,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
         </div>
           <div className="chat-input-meta">
           <div className="chat-input-meta-left">
-            {showCharCount && (
+            {showCharCount && !narrow && (
               <span className="meta-chip" title={`${lineCount} line(s)`}>
                 {text.length} chars
               </span>
