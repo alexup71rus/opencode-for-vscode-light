@@ -93,6 +93,9 @@ export async function openFileDiff(
   // No reconstruction happened and not a new file → nothing to show as a diff;
   // just open the file.
   if (!isNewFile && before === current) {
+    console.warn(
+      `[opencode] diff fallback for ${abs}: none of ${edits.length} patch(es) matched current content. Opening the file as-is.`,
+    );
     await vscode.commands.executeCommand("vscode.open", fileUri, {
       viewColumn: vscode.ViewColumn.Beside,
     });

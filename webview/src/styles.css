@@ -2582,6 +2582,28 @@ code {
   background: var(--vscode-list-hoverBackground);
 }
 
+.change-diff-chip {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 1px 6px;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  border-radius: 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+  opacity: 0.7;
+  text-decoration: none;
+  transition: opacity var(--opencode-ease), background var(--opencode-ease);
+}
+
+.change-diff-chip:hover {
+  opacity: 1;
+  background: var(--vscode-list-hoverBackground);
+  text-decoration: underline;
+}
+
 .change-status {
   flex: 0 0 8px;
   width: 8px;
@@ -3677,6 +3699,8 @@ code {
 
 .settings-panel {
   max-width: 600px;
+  align-self: flex-start;
+  margin-top: 8vh;
 }
 
 .settings-tabs {
