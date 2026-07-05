@@ -98,6 +98,13 @@ export function SettingsPanel(): React.ReactElement | null {
     return tools.filter((t) => t.id.toLowerCase().includes(q));
   }, [tools, toolFilter]);
 
+  const draftVariants = useMemo<string[] | null>(() => {
+    if (!draftModel) return null;
+    const p = connectedProviders.find((pr) => pr.id === draftModel.providerID);
+    const m = p?.models.find((mm) => mm.modelID === draftModel.modelID);
+    return m?.variants ?? null;
+  }, [draftModel, connectedProviders]);
+
   if (!open) return null;
 
   const save = () => {
@@ -160,12 +167,6 @@ export function SettingsPanel(): React.ReactElement | null {
     (n, p) => n + p.models.filter((m) => !hiddenSet.has(modelKey(m))).length,
     0,
   );
-  const draftVariants = useMemo<string[] | null>(() => {
-    if (!draftModel) return null;
-    const p = connectedProviders.find((pr) => pr.id === draftModel.providerID);
-    const m = p?.models.find((mm) => mm.modelID === draftModel.modelID);
-    return m?.variants ?? null;
-  }, [draftModel, connectedProviders]);
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "general", label: "General" },
