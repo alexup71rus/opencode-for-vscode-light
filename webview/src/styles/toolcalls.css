@@ -345,15 +345,23 @@
   padding-right: 10px;
 }
 
-/* Row tints (whole line, first layer). */
+/* Row tints (whole line, first layer). Text stays in the readable editor
+   foreground so it never disappears into a same-hue background; the +/- sign
+   carries the hue cue instead. */
 .diff-add {
-  color: var(--vscode-diffEditor-insertedTextForeground, var(--vscode-terminal-ansiGreen, #3fb950));
-  background: var(--vscode-diffEditor-insertedTextBackground, rgba(63, 185, 80, 0.15));
+  background: var(--vscode-diffEditor-insertedTextBackground, rgba(63, 185, 80, 0.18));
 }
 
 .diff-del {
+  background: var(--vscode-diffEditor-removedTextBackground, rgba(248, 81, 73, 0.18));
+}
+
+.diff-add > .diff-sign {
+  color: var(--vscode-diffEditor-insertedTextForeground, var(--vscode-terminal-ansiGreen, #3fb950));
+}
+
+.diff-del > .diff-sign {
   color: var(--vscode-diffEditor-removedTextForeground, var(--vscode-terminal-ansiRed, #f85149));
-  background: var(--vscode-diffEditor-removedTextBackground, rgba(248, 81, 73, 0.15));
 }
 
 .diff-ctx {
