@@ -21,31 +21,27 @@ export default function App(): React.ReactElement {
   const serverStatus = useStore((s) => s.serverStatus);
   const errorMessage = useStore((s) => s.errorMessage);
   const activeSessionId = useStore((s) => s.activeSessionId);
-  const activeStatus = useStore((s) =>
-    activeSessionId ? s.sessionStatus[activeSessionId] : undefined,
-  );
+  const sessionStatusMap = useStore((s) => s.sessionStatus);
   const sessions = useStore((s) => s.sessions);
 
-  // Play a soft cue when the active session finishes a turn (busy -> idle).
-  // Track session id alongside status so the cue only fires when the SAME
-  // session transitions busy -> idle; switching tabs must not trigger it.
-  const prevSessionStatusRef = useRef<{ sessionId: string | null; type: string | undefined }>({
-    sessionId: null,
-    type: undefined,
-  });
+  // Play a soft cue when ANY session finishes a turn (busy -> idle) — not just
+  // the active one, so the user hears completion even while reading another chat.
+  const prevStatusMapRef = useRef<Record<string, string>>({});
   useEffect(() => {
-    const prev = prevSessionStatusRef.current;
-    const curType = activeStatus?.type;
-    prevSessionStatusRef.current = { sessionId: activeSessionId, type: curType };
-    if (
-      prev.sessionId === activeSessionId &&
-      prev.type === "busy" &&
-      curType !== "busy" &&
-      curType !== undefined
-    ) {
-      if (useStore.getState().settings.soundOnComplete) playCompleteSound();
+    const prev = prevStatusMapRef.current;
+    const next: Record<string, string> = {};
+    let anyCompleted = false;
+    for (const [id, status] of Object.entries(sessionStatusMap)) {
+      next[id] = status.type;
+      if (prev[id] === "busy" && status.type !== "busy" && status.type !== undefined) {
+        anyCompleted = true;
+      }
     }
-  }, [activeSessionId, activeStatus]);
+    prevStatusMapRef.current = next;
+    if (anyCompleted && useStore.getState().settings.soundOnComplete) {
+      playCompleteSound();
+    }
+  }, [sessionStatusMap]);
 
   // Changed-file count for the Inspect toggle badge. Derived from the active
   // session's tool calls (the server's /file/status endpoint is empty on

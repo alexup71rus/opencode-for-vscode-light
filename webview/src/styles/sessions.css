@@ -66,9 +66,11 @@
   color: var(--vscode-list-activeSelectionForeground);
 }
 
-/* Active session that is currently generating a response: a glowing accent
-   stripe on the left edge + a "typing" dots indicator on the right. */
-.session-item.generating::before {
+/* A session that is currently generating a response: pulsing accent stripe
+   on the left edge. Shown on ALL busy sessions, not just the active one,
+   so the user sees background activity while reading another chat. */
+.session-item.generating::before,
+.session-item.waiting::before {
   content: "";
   position: absolute;
   left: 0;
@@ -76,16 +78,24 @@
   bottom: 7px;
   width: 2px;
   border-radius: 0 2px 2px 0;
+  animation: session-gen-pulse 1.4s ease-in-out infinite;
+}
+
+.session-item.generating::before {
   background: var(--vscode-charts-blue, #4aa5ff);
   box-shadow: 0 0 6px color-mix(in srgb, var(--vscode-charts-blue, #4aa5ff) 70%, transparent);
-  animation: session-gen-pulse 1.4s ease-in-out infinite;
+}
+
+/* Orange stripe when the agent is blocked waiting for user action
+   (permission approval or interactive question). */
+.session-item.waiting::before {
+  background: var(--vscode-charts-orange, #e07b00);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--vscode-charts-orange, #e07b00) 70%, transparent);
 }
 
 @keyframes session-gen-pulse {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
-
-
 }
 
 .session-item.confirming {

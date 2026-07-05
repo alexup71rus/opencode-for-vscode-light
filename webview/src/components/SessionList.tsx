@@ -46,6 +46,14 @@ export function SessionList(): React.ReactElement {
   const search = useStore((s) => s.sessionSearch);
   const setSearch = useStore((s) => s.setSessionSearch);
   const sessionStatus = useStore((s) => s.sessionStatus);
+  const pendingPermissions = useStore((s) => s.pendingPermissions);
+  const pendingQuestions = useStore((s) => s.pendingQuestions);
+  const actionSessions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of pendingPermissions) set.add(p.sessionID);
+    for (const q of pendingQuestions) set.add(q.sessionID);
+    return set;
+  }, [pendingPermissions, pendingQuestions]);
   const agents = useStore((s) => s.agents);
   const subagentToolNames = useMemo(() => {
     const names = new Set<string>(["task"]);
@@ -177,7 +185,7 @@ export function SessionList(): React.ReactElement {
   const renderSession = (ses: SessionWithMeta, depth = 0) => {
     const isActive = ses.id === activeSessionId;
     const isBusy = sessionStatus[ses.id]?.type === "busy";
-    const isGenerating = isActive && isBusy;
+    const isWaiting = isBusy && actionSessions.has(ses.id);
     const isConfirming = pendingDelete === ses.id;
     const isEditing = editingId === ses.id;
     const isPinned = pinnedSet.has(ses.id);
@@ -187,8 +195,8 @@ export function SessionList(): React.ReactElement {
     return (
       <div
         key={ses.id}
-        className={`session-item ${isActive ? "active" : ""} ${isGenerating ? "generating" : ""} ${isConfirming ? "confirming" : ""} ${childDepth > 0 ? "session-item-child" : ""}`}
-        aria-busy={isGenerating ? true : undefined}
+        className={`session-item ${isActive ? "active" : ""} ${isWaiting ? "waiting" : isBusy ? "generating" : ""} ${isConfirming ? "confirming" : ""} ${childDepth > 0 ? "session-item-child" : ""}`}
+        aria-busy={isBusy ? true : undefined}
         style={childDepth > 0 ? { paddingLeft: 8 + childDepth * 14 } : undefined}
         onClick={() => {
           if (isConfirming) {
