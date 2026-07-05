@@ -598,7 +598,6 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
         </div>
           <div className="chat-input-meta">
           <div className="chat-input-meta-left">
-            <AgentSelector compact />
             {showCharCount && (
               <span className="meta-chip" title={`${lineCount} line(s)`}>
                 {text.length} chars
@@ -606,6 +605,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             )}
           </div>
           <div className="chat-input-meta-right">
+            <AgentSelector compact />
             {totalCost > 0 && (
               <span className="meta-chip" title="Total cost (all sessions)">
                 {formatCost(totalCost)}
