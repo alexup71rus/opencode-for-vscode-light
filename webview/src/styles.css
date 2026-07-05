@@ -556,7 +556,6 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 13px;
-  padding-right: 72px;
 }
 
 .session-item-child {
@@ -2087,17 +2086,16 @@ code {
 }
 
 .abort-btn {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 12px;
+  justify-content: center;
   background: var(--vscode-errorBackground, var(--vscode-inputValidation-errorBackground, #5a1d1d));
   color: var(--vscode-errorForeground, var(--vscode-button-foreground, #fff));
   border: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
-  border-radius: 15px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 50%;
   transition: filter var(--opencode-ease);
 }
 

@@ -26,15 +26,25 @@ export default function App(): React.ReactElement {
   const sessions = useStore((s) => s.sessions);
 
   // Play a soft cue when the active session finishes a turn (busy -> idle).
-  const prevStatusRef = useRef<string | undefined>(undefined);
+  // Track session id alongside status so the cue only fires when the SAME
+  // session transitions busy -> idle; switching tabs must not trigger it.
+  const prevSessionStatusRef = useRef<{ sessionId: string | null; type: string | undefined }>({
+    sessionId: null,
+    type: undefined,
+  });
   useEffect(() => {
-    const prev = prevStatusRef.current;
-    const cur = activeStatus?.type;
-    prevStatusRef.current = cur;
-    if (prev === "busy" && cur !== "busy" && cur !== undefined) {
+    const prev = prevSessionStatusRef.current;
+    const curType = activeStatus?.type;
+    prevSessionStatusRef.current = { sessionId: activeSessionId, type: curType };
+    if (
+      prev.sessionId === activeSessionId &&
+      prev.type === "busy" &&
+      curType !== "busy" &&
+      curType !== undefined
+    ) {
       if (useStore.getState().settings.soundOnComplete) playCompleteSound();
     }
-  }, [activeStatus]);
+  }, [activeSessionId, activeStatus]);
 
   // Changed-file count for the Inspect toggle badge. Derived from the active
   // session's tool calls (the server's /file/status endpoint is empty on
@@ -265,10 +275,16 @@ export default function App(): React.ReactElement {
   return (
     <div className="app-root">
       <header className="app-header">
+        <button
+          className={`header-toggle ${sidebarOpen ? "active" : ""}`}
+          title={sidebarOpen ? "Hide sessions" : "Show sessions"}
+          aria-label={sidebarOpen ? "Hide sessions" : "Show sessions"}
+          aria-pressed={sidebarOpen}
+          onClick={toggleSidebar}
+        >
+          <PanelIcon />
+        </button>
         <div className="app-title" title={headerTitle ?? "OCVS"}>
-          <span className="app-title-mark" aria-hidden="true">
-            <Logo size={14} />
-          </span>
           {activeIsChild ? (
             <>
               <button
@@ -314,15 +330,6 @@ export default function App(): React.ReactElement {
               YOLO
             </span>
           )}
-          <button
-            className={`header-toggle ${sidebarOpen ? "active" : ""}`}
-            title={sidebarOpen ? "Hide sessions" : "Show sessions"}
-            aria-label={sidebarOpen ? "Hide sessions" : "Show sessions"}
-            aria-pressed={sidebarOpen}
-            onClick={toggleSidebar}
-          >
-            <PanelIcon />
-          </button>
           <button
             className={`header-toggle ${rightPanelOpen ? "active" : ""}`}
             title={rightPanelOpen ? "Hide inspect panel" : "Show inspect panel"}
