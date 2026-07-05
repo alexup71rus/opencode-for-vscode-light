@@ -67,7 +67,17 @@ This extension takes a different approach: **a purpose-built frontend that talks
 
 ## Getting started
 
-### Install from source
+### Install
+
+**Option A — pre-built (recommended)**
+
+Download the latest `.vsix` from [Releases](https://github.com/alexup71rus/opencode-for-vscode-light/releases), then:
+
+```bash
+code --install-extension opencode-vscode-client-<version>.vsix
+```
+
+**Option B — from source**
 
 ```bash
 npm install
@@ -75,11 +85,10 @@ npm run compile
 npm run dev:install      # compile → package → install into VS Code, then reload window
 ```
 
-Or package a vsix to share:
+Or build a vsix to share:
 
 ```bash
-npm run package:vsix
-code --install-extension opencode-vscode-client-0.1.0.vsix
+npm run package:vsix     # produces opencode-vscode-client-<version>.vsix
 ```
 
 ### Use
@@ -100,26 +109,15 @@ code --install-extension opencode-vscode-client-0.1.0.vsix
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  Extension Host (Node.js)                                │
-│                                                          │
-│  extension/  ── VS Code integration (panel, commands,    │
-│                 context provider, diff provider)         │
-│       │                                                  │
-│  services/   ── State (sessions, models, stats)          │
-│       │                                                  │
-│  bridge/     ── OpenCode connection (HTTP + SSE)         │
-│       │                                                  │
-│  protocol/   ── Typed postMessage contract               │
-│                                                          │
-│  ────────────── postMessage ──────────────              │
-│                                                          │
-│  webview/    ── React UI rendered inside VS Code         │
-└──────────────────────────────────────────────────────────┘
-```
+The extension host runs a `bridge → services → protocol` stack and talks to the webview over `postMessage`:
 
-The bridge layer is fully isolated — it can be swapped (HTTP → WebSocket → ACP) without touching services or UI. The extension spawns `opencode serve`, parses the assigned port from stdout, authenticates with HTTP Basic via `OPENCODE_SERVER_PASSWORD`, and subscribes to the SSE event stream for real-time updates (message deltas, permissions, file changes). The child process is killed on deactivate.
+- **`src/extension/`** — VS Code integration: activation, commands, webview panel, context provider, diff provider.
+- **`src/services/`** — framework-agnostic state (sessions, models, stats) on a small EventEmitter.
+- **`src/bridge/`** — OpenCode connection: server lifecycle, SDK client wrapper, SSE event stream. Fully isolated — swappable (HTTP → WebSocket → ACP) without touching services or UI.
+- **`src/protocol/`** — typed `postMessage` contract. Pure types, zero dependencies.
+- **`webview/src/`** — React UI rendered inside VS Code.
+
+The extension spawns `opencode serve`, parses the assigned port from stdout, authenticates with HTTP Basic via `OPENCODE_SERVER_PASSWORD`, and subscribes to the SSE event stream for real-time updates (message deltas, permissions, file changes). The child process is killed on deactivate.
 
 ## Development
 

@@ -72,7 +72,8 @@
     "watch:webview": "vite build --watch",
     "lint": "tsc --noEmit -p tsconfig.extension.json && tsc --noEmit -p tsconfig.webview.json",
     "package:vsix": "vsce package --no-dependencies",
-    "dev:install": "bash scripts/dev-install.sh"
+    "dev:install": "bash scripts/dev-install.sh",
+    "bump": "bash scripts/bump-version.sh"
   },
   "dependencies": {
     "@opencode-ai/sdk": "^1.17.13",

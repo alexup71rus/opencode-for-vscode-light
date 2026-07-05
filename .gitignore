@@ -9,3 +9,6 @@ webview/dist/
 TODO.md
 docs/superpowers/
 docs/SPEC-*.md
+
+# Tooling artifacts
+.playwright-mcp/

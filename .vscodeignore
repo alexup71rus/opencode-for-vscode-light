@@ -8,6 +8,8 @@ docs/**
 node_modules/**
 .gitignore
 .gitattributes
+AGENTS.md
+TODO.md
 .eslintignore
 .eslintrc*
 .prettierrc*
@@ -18,7 +20,6 @@ tsconfig*.json
 *.tsbuildinfo
 **/*.tsbuildinfo
 **/*.map
-TODO.md
 .github/**
 **/.git/**
 **/.DS_Store
