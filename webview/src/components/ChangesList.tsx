@@ -74,7 +74,19 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
         <div className="changes-list">
           {rows.length === 0 && <div className="empty-hint">No file changes</div>}
           {rows.map((row) => (
-            <div key={row.filePath} className="change-row" title={row.filePath}>
+            <button
+              key={row.filePath}
+              className="change-row"
+              title={row.filePath}
+              onClick={() =>
+                postMessage({
+                  type: "openFileDiff",
+                  filePath: row.filePath,
+                  edits: row.edits,
+                  isNewFile: row.isNewFile,
+                })
+              }
+            >
               <span className={`change-status change-status-${row.isNewFile ? "added" : "modified"}`} />
               <span className="change-delta">
                 {row.additions > 0 && <span className="delta-add">+{row.additions}</span>}
@@ -83,21 +95,7 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
               <span className="change-file" title={row.filePath}>
                 {basename(row.filePath)}
               </span>
-              <button
-                className="change-diff-chip"
-                title="Open in diff editor"
-                onClick={() =>
-                  postMessage({
-                    type: "openFileDiff",
-                    filePath: row.filePath,
-                    edits: row.edits,
-                    isNewFile: row.isNewFile,
-                  })
-                }
-              >
-                Diff ↗
-              </button>
-            </div>
+            </button>
           ))}
         </div>
       )}
