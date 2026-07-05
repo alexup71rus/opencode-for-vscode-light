@@ -578,7 +578,7 @@ export const MessageBubble = memo(function MessageBubble({
               {hasCost && <span className="message-cost">{formatCost(cost)}</span>}
               {tok > 0 && (
                 <span className="message-tokens" title="Tokens (input + output + reasoning)">
-                  {formatTokenCount(tok)}
+                  {formatTokenCount(tok)}t
                 </span>
               )}
             </div>
