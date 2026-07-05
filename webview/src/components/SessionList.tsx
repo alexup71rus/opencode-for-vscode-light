@@ -176,6 +176,8 @@ export function SessionList(): React.ReactElement {
 
   const renderSession = (ses: SessionWithMeta, depth = 0) => {
     const isActive = ses.id === activeSessionId;
+    const isBusy = sessionStatus[ses.id]?.type === "busy";
+    const isGenerating = isActive && isBusy;
     const isConfirming = pendingDelete === ses.id;
     const isEditing = editingId === ses.id;
     const isPinned = pinnedSet.has(ses.id);
@@ -185,7 +187,8 @@ export function SessionList(): React.ReactElement {
     return (
       <div
         key={ses.id}
-        className={`session-item ${isActive ? "active" : ""} ${isConfirming ? "confirming" : ""} ${childDepth > 0 ? "session-item-child" : ""}`}
+        className={`session-item ${isActive ? "active" : ""} ${isGenerating ? "generating" : ""} ${isConfirming ? "confirming" : ""} ${childDepth > 0 ? "session-item-child" : ""}`}
+        aria-busy={isGenerating ? true : undefined}
         style={childDepth > 0 ? { paddingLeft: 8 + childDepth * 14 } : undefined}
         onClick={() => {
           if (isConfirming) {
@@ -249,6 +252,13 @@ export function SessionList(): React.ReactElement {
             </div>
           )}
         </div>
+        {isGenerating && (
+          <span className="session-generating-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        )}
         {isConfirming ? (
           <div className="session-confirm" onClick={(e) => e.stopPropagation()}>
             <button
