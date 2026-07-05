@@ -1,10 +1,14 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import type { MessageWithParts, TextPart } from "../api/types";
 
 interface MessageNavRailProps {
   sessionId: string;
-  scrollRef: React.RefObject<HTMLDivElement | null>;
+  /** id of the message sitting at the top of the chat viewport (drives the
+   * active dot). With chat virtualization on, off-screen messages are unmounted,
+   * so the active dot can't rely on an IntersectionObserver over DOM nodes. */
+  topMessageId: string | null;
+  onJump: (messageId: string) => void;
 }
 
 function previewOf(message: MessageWithParts): string {
@@ -20,14 +24,32 @@ function previewOf(message: MessageWithParts): string {
 
 export const MessageNavRail = memo(function MessageNavRail({
   sessionId,
-  scrollRef,
+  topMessageId,
+  onJump,
 }: MessageNavRailProps): React.ReactElement | null {
   const messages = useStore((s) => s.messagesBySession[sessionId] ?? []);
   const userMessages = messages.filter((m) => m.info.role === "user");
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [hover, setHover] = useState<{ text: string; left: number; top: number } | null>(null);
   const lastActiveIdRef = useRef<string | null>(null);
+  const [hover, setHover] = useState<{ text: string; left: number; top: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+
+  // Active dot = the last user message at or above the message currently at the
+  // top of the viewport. Derived from the virtualizer's reported topMessageId so
+  // it stays correct even when distant messages are unmounted.
+  const activeId = useMemo(() => {
+    if (messages.length === 0) return null;
+    if (topMessageId) {
+      const idx = messages.findIndex((m) => m.info.id === topMessageId);
+      const from = idx >= 0 ? idx : messages.length - 1;
+      for (let i = from; i >= 0; i--) {
+        if (messages[i].info.role === "user") {
+          lastActiveIdRef.current = messages[i].info.id;
+          return messages[i].info.id;
+        }
+      }
+    }
+    return lastActiveIdRef.current;
+  }, [messages, topMessageId]);
 
   // Keep the rail scroll position anchored to the bottom as new user messages
   // arrive (mirrors the chat's stick-to-bottom). Without this the rail stays at
@@ -61,57 +83,16 @@ export const MessageNavRail = memo(function MessageNavRail({
     }
   }, [activeId]);
 
-  // Highlight the dot for whichever user message is currently near the top of
-  // the visible chat area. Uses IntersectionObserver so it is passive.
+  // Reset sticky-active state + tooltip when switching sessions.
   useEffect(() => {
-    // Reset sticky-active state when switching sessions so we never highlight a
-    // dot from the previous session.
     lastActiveIdRef.current = null;
-    setActiveId(null);
     setHover(null);
-    if (userMessages.length === 0) return;
-    const root = scrollRef.current;
-    const intersecting = new Set<string>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = entry.target.id.replace(/^msg-/, "");
-          if (entry.isIntersecting) intersecting.add(id);
-          else intersecting.delete(id);
-        }
-        if (intersecting.size === 0) {
-          if (lastActiveIdRef.current !== null) {
-            setActiveId(lastActiveIdRef.current);
-          }
-        } else {
-          for (const m of userMessages) {
-            if (intersecting.has(m.info.id)) {
-              lastActiveIdRef.current = m.info.id;
-              setActiveId(m.info.id);
-              break;
-            }
-          }
-        }
-      },
-      { root, rootMargin: "-10% 0px -40% 0px", threshold: 0 },
-    );
-    for (const m of userMessages) {
-      const el = document.getElementById(`msg-${m.info.id}`);
-      if (el) {
-        observer.observe(el);
-      }
-    }
-    return () => observer.disconnect();
-  }, [sessionId, userMessages.length, scrollRef]);
+  }, [sessionId]);
 
   // Only render as a helpful aid when there is more than one message to jump between.
   if (userMessages.length < 2) return null;
 
-  const jumpTo = (messageId: string) => {
-    document
-      .getElementById(`msg-${messageId}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
+  const jumpTo = (messageId: string) => onJump(messageId);
 
   return (
     <div className="msg-nav-rail" role="navigation" aria-label="Jump to message" ref={railRef}>

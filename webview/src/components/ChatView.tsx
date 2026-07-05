@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import type { AttachedContext, MessageWithParts } from "../api/types";
 import { buildSendOptions } from "../compose";
 import { MessageBubble } from "./MessageBubble";
 import { MessageNavRail } from "./MessageNavRail";
+import { VirtualizedBubbles } from "./VirtualizedBubbles";
 import { Logo } from "./Logo";
 import { ContextIndicator } from "./ContextIndicator";
 
@@ -20,6 +21,20 @@ const EXAMPLE_PROMPTS = [
 ];
 
 const NEAR_BOTTOM_THRESHOLD = 120;
+
+// Rough pre-measurement height for a bubble. Only needs to keep the scrollbar
+// approximately right until the real offsetHeight is observed; the virtualizer
+// corrects every bubble as soon as it enters the render window.
+function estimateBubbleHeight(b: { message: MessageWithParts }): number {
+  let chars = 0;
+  let tools = 0;
+  for (const p of b.message.parts) {
+    if (p.type === "text") chars += p.text.length;
+    else if (p.type === "reasoning") chars += (p.text?.length ?? 0);
+    else if (p.type === "tool") tools++;
+  }
+  return Math.max(96, Math.min(2400, 80 + chars * 0.2 + tools * 70));
+}
 
 function buildContext(): AttachedContext | undefined {
   const { activeFile, selection } = useStore.getState();
@@ -120,6 +135,9 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
   // peeking into a subagent chat) restores the position instead of jumping
   // to the top.
   const scrollPositions = useRef<Map<string, number>>(new Map());
+  // Per-session stickiness, remembered so the virtualizer can seed the correct
+  // end on switch (stickToBottomRef itself lags one effect phase behind).
+  const stickBySession = useRef<Map<string, boolean>>(new Map());
   const restoreOnLoad = useRef<Set<string>>(new Set());
 
   const onScroll = () => {
@@ -129,6 +147,7 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
     const atBottom = distance < NEAR_BOTTOM_THRESHOLD;
     stickToBottomRef.current = atBottom;
+    stickBySession.current.set(sessionId, atBottom);
     setShowScrollBtn(!atBottom);
   };
 
@@ -255,6 +274,48 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
     }));
   }, [messages]);
 
+  const [topMessageId, setTopMessageId] = useState<string | null>(null);
+  const scrollToKeyRef = useRef<((key: string) => void) | null>(null);
+  // First visit (no recorded stickiness) seeds at the bottom — the common case.
+  const seedAtBottom = stickBySession.current.get(sessionId) ?? true;
+
+  const estimateHeight = useCallback((i: number) => estimateBubbleHeight(bubbles[i]), [bubbles]);
+
+  const renderBubble = useCallback(
+    (i: number) => {
+      const b = bubbles[i];
+      return (
+        <MessageBubble
+          sessionId={sessionId}
+          message={b.message}
+          isLastUser={b.isLastUser}
+          subtaskChild={subtaskChild}
+          taskChild={taskChild}
+          streaming={isBusy && i === bubbles.length - 1 && b.message.info.role === "assistant"}
+        />
+      );
+    },
+    [bubbles, sessionId, isBusy, subtaskChild, taskChild],
+  );
+
+  const handleTopKey = useCallback(
+    (key: string | null) => {
+      const b = key ? bubbles.find((x) => x.key === key) : undefined;
+      setTopMessageId(b?.message.info.id ?? null);
+    },
+    [bubbles],
+  );
+
+  const onJump = useCallback(
+    (messageId: string) => {
+      const b = bubbles.find(
+        (x) => x.message.info.id === messageId || x.message.parts.some((p) => p.messageID === messageId),
+      );
+      if (b) scrollToKeyRef.current?.(b.key);
+    },
+    [bubbles],
+  );
+
   if (messages.length === 0) {
     return (
       <div className="chat-empty">
@@ -278,46 +339,45 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
 
   return (
     <div className="chat-view">
-      <MessageNavRail sessionId={sessionId} scrollRef={scrollRef} />
+      <MessageNavRail sessionId={sessionId} topMessageId={topMessageId} onJump={onJump} />
       <ContextIndicator sessionId={sessionId} />
       <div className="chat-main">
         <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
-        <div className="chat-messages">
-          {bubbles.map((b, i) => (
-            <MessageBubble
-              key={b.key}
-              sessionId={sessionId}
-              message={b.message}
-              isLastUser={b.isLastUser}
-              subtaskChild={subtaskChild}
-              taskChild={taskChild}
-              streaming={isBusy && i === bubbles.length - 1 && b.message.info.role === "assistant"}
-            />
-          ))}
-          {(isCompacting || (isBusy && bubbles[bubbles.length - 1]?.message.info.role !== "assistant")) && (
-            <div className="message message-assistant">
-              <div className="message-avatar message-avatar-ai">
-                <SparkIcon />
-              </div>
-              <div className="message-content">
-                {isCompacting ? (
-                  <div className="compacting-indicator">
-                    <span className="compacting-spinner" />
-                    Compacting context…
+          <VirtualizedBubbles
+            items={bubbles}
+            scrollRef={scrollRef}
+            estimateHeight={estimateHeight}
+            renderItem={renderBubble}
+            stickToBottomRef={stickToBottomRef}
+            seedAtBottom={seedAtBottom}
+            bottomRef={bottomRef}
+            onTopVisibleKey={handleTopKey}
+            scrollToKeyRef={scrollToKeyRef}
+            trailing={
+              isCompacting || (isBusy && bubbles[bubbles.length - 1]?.message.info.role !== "assistant") ? (
+                <div className="message message-assistant">
+                  <div className="message-avatar message-avatar-ai">
+                    <SparkIcon />
                   </div>
-                ) : (
-                  <div className="typing-indicator">
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="dot" />
+                  <div className="message-content">
+                    {isCompacting ? (
+                      <div className="compacting-indicator">
+                        <span className="compacting-spinner" />
+                        Compacting context…
+                      </div>
+                    ) : (
+                      <div className="typing-indicator">
+                        <span className="dot" />
+                        <span className="dot" />
+                        <span className="dot" />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
+                </div>
+              ) : null
+            }
+          />
         </div>
-      </div>
       </div>
       {showScrollBtn && (
         <button
