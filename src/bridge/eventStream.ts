@@ -12,40 +12,79 @@ export class EventStream extends EventEmitter {
   private sleepResolver: (() => void) | null = null;
   private generation = 0;
   private activeConnect: Promise<void> = Promise.resolve();
+  /**
+   * Serialises start/stop/restart. Each public method delegates to a private
+   * doXxx op and runs it through this chain so concurrent callers cannot
+   * interleave their state mutations: e.g. a stop() whose await races a
+   * restart() cannot have its "running stays false" contract violated by
+   * the restart setting running=true mid-flight.
+   */
+  private chain: Promise<void> = Promise.resolve();
 
   constructor(client: OpenCodeClient) {
     super();
     this.client = client;
   }
 
-  start(): void {
-    if (this.running) return;
-    this.running = true;
-    this.activeConnect = this.connect(++this.generation);
+  async start(): Promise<void> {
+    await this.enqueue(() => this.doStart());
   }
 
   /**
    * Stop the stream and wait until the active connect loop has fully exited.
    *
    * Honest semantics: by the time the returned promise resolves, no connect
-   * loop is running and no SSE subscription is held. Callers that cannot
-   * block indefinitely (e.g. extension shutdown) should race this with a
-   * timeout at the call site rather than weakening the contract here.
+   * loop is running and no SSE subscription is held. The internal chain
+   * additionally guarantees that if a restart() was issued concurrently
+   * (before this stop() began executing), it runs first; once stop()
+   * resolves the stream is genuinely stopped — no later queued op can have
+   * raced ahead to flip running back to true.
+   *
+   * Callers that cannot block indefinitely (e.g. extension shutdown) should
+   * race this with a timeout at the call site rather than weakening the
+   * contract here.
    */
   async stop(): Promise<void> {
+    await this.enqueue(() => this.doStop());
+  }
+
+  /**
+   * Atomically swap the connection: abort the old connect loop, wait for it
+   * to fully tear down its SSE subscription, then start a fresh one. The
+   * chain serialises this against concurrent stop()/start() calls so the
+   * only state transitions that happen during restart are restart's own.
+   */
+  async restart(): Promise<void> {
+    await this.enqueue(() => this.doRestart());
+  }
+
+  private enqueue(op: () => Promise<void>): Promise<void> {
+    // Run op whether the previous link resolved or rejected (a failing
+    // stop()/start() must not poison the chain for the next caller).
+    const run = this.chain.then(op, op);
+    // Swallow rejections on the persistent chain link so a throwing op
+    // never breaks subsequent operations. The originating caller still
+    // observes the rejection via `run`.
+    this.chain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async doStart(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    this.activeConnect = this.connect(++this.generation);
+  }
+
+  private async doStop(): Promise<void> {
     this.running = false;
     this.cancelWait();
     await this.activeConnect;
   }
 
-  /**
-   * Atomically swap the connection: abort the old connect loop, wait for it
-   * to fully tear down its SSE subscription, then start a fresh one. Without
-   * the awaited shutdown two concurrent SSE streams could briefly coexist
-   * and the dying loop could null out the new loop's abortController in its
-   * finally block.
-   */
-  async restart(): Promise<void> {
+  private async doRestart(): Promise<void> {
     const gen = ++this.generation;
     this.running = false;
     this.cancelWait();
