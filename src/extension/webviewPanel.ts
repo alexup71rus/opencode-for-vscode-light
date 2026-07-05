@@ -534,6 +534,21 @@ export class WebviewPanelManager {
       this.postMessage({ type: "sessionStatus", sessionId: payload.sessionId, status: payload.status });
     });
 
+    this.addListener(session, "sessionError", (...args) => {
+      const payload = args[0] as { sessionId: string; error: unknown };
+      if (!payload?.sessionId) return;
+      const detail =
+        typeof payload.error === "string"
+          ? payload.error
+          : payload.error instanceof Error
+            ? payload.error.message
+            : payload.error && typeof payload.error === "object" && "message" in payload.error
+              ? String((payload.error as { message: unknown }).message)
+              : "unknown server error";
+      this.output.appendLine(`[opencode] session ${payload.sessionId} error: ${detail}`);
+      this.postMessage({ type: "error", message: detail });
+    });
+
     this.addListener(session, "permissionRequest", (...args) => {
       const payload = args[0] as { sessionId: string; permission: Permission };
       if (!payload?.sessionId) return;

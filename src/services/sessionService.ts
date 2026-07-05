@@ -401,7 +401,13 @@ export class SessionService extends EventEmitter {
 
   private handleSessionError = (payload: { sessionID?: string; error?: unknown }): void => {
     if (!payload.sessionID) return;
-    this.emit("sessionError", { sessionId: payload.sessionID, error: payload.error });
+    const sessionId = payload.sessionID;
+    // After a session-level error the session is no longer generating.
+    // Force the status to idle so the UI input unblocks, even if the
+    // server does not emit a subsequent session.idle event.
+    this.statusBySession.set(sessionId, { type: "idle" });
+    this.emit("sessionStatus", { sessionId, status: { type: "idle" } });
+    this.emit("sessionError", { sessionId, error: payload.error });
   };
 
   private handleMessageUpdated = (payload: { info: Message }): void => {
