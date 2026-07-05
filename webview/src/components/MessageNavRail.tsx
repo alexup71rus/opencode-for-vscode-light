@@ -1,0 +1,149 @@
+import { memo, useEffect, useRef, useState } from "react";
+import { useStore } from "../store/store";
+import type { MessageWithParts, TextPart } from "../api/types";
+
+interface MessageNavRailProps {
+  sessionId: string;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function previewOf(message: MessageWithParts): string {
+  const text = message.parts
+    .filter((p): p is TextPart => p.type === "text" && !p.ignored)
+    .map((p) => p.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= 50) return text;
+  return `${text.slice(0, 50)}…`;
+}
+
+export const MessageNavRail = memo(function MessageNavRail({
+  sessionId,
+  scrollRef,
+}: MessageNavRailProps): React.ReactElement | null {
+  const messages = useStore((s) => s.messagesBySession[sessionId] ?? []);
+  const userMessages = messages.filter((m) => m.info.role === "user");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [hover, setHover] = useState<{ text: string; left: number; top: number } | null>(null);
+  const lastActiveIdRef = useRef<string | null>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+
+  // Keep the rail scroll position anchored to the bottom as new user messages
+  // arrive (mirrors the chat's stick-to-bottom). Without this the rail stays at
+  // scrollTop 0 while dots pile up below the fold — the "always at top" bug.
+  // Pin in rAF so the newly-added dot has been laid out before we measure.
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [sessionId, userMessages.length]);
+
+  // As the chat scrolls, bring the newly-active dot into view within the rail.
+  // Manual scrollTop math (not scrollIntoView) so we don't also scroll the chat.
+  useEffect(() => {
+    if (!activeId) return;
+    const rail = railRef.current;
+    if (!rail) return;
+    const dot = rail.querySelector<HTMLElement>(`[data-msg-id="${activeId}"]`);
+    if (!dot) return;
+    const railRect = rail.getBoundingClientRect();
+    const dotRect = dot.getBoundingClientRect();
+    const dotTopRel = dotRect.top - railRect.top + rail.scrollTop;
+    const dotBottomRel = dotTopRel + dotRect.height;
+    if (dotTopRel < rail.scrollTop) {
+      rail.scrollTop = dotTopRel;
+    } else if (dotBottomRel > rail.scrollTop + rail.clientHeight) {
+      rail.scrollTop = dotBottomRel - rail.clientHeight;
+    }
+  }, [activeId]);
+
+  // Highlight the dot for whichever user message is currently near the top of
+  // the visible chat area. Uses IntersectionObserver so it is passive.
+  useEffect(() => {
+    // Reset sticky-active state when switching sessions so we never highlight a
+    // dot from the previous session.
+    lastActiveIdRef.current = null;
+    setActiveId(null);
+    setHover(null);
+    if (userMessages.length === 0) return;
+    const root = scrollRef.current;
+    const intersecting = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = entry.target.id.replace(/^msg-/, "");
+          if (entry.isIntersecting) intersecting.add(id);
+          else intersecting.delete(id);
+        }
+        if (intersecting.size === 0) {
+          if (lastActiveIdRef.current !== null) {
+            setActiveId(lastActiveIdRef.current);
+          }
+        } else {
+          for (const m of userMessages) {
+            if (intersecting.has(m.info.id)) {
+              lastActiveIdRef.current = m.info.id;
+              setActiveId(m.info.id);
+              break;
+            }
+          }
+        }
+      },
+      { root, rootMargin: "-10% 0px -40% 0px", threshold: 0 },
+    );
+    for (const m of userMessages) {
+      const el = document.getElementById(`msg-${m.info.id}`);
+      if (el) {
+        observer.observe(el);
+      }
+    }
+    return () => observer.disconnect();
+  }, [sessionId, userMessages.length, scrollRef]);
+
+  // Only render as a helpful aid when there is more than one message to jump between.
+  if (userMessages.length < 2) return null;
+
+  const jumpTo = (messageId: string) => {
+    document
+      .getElementById(`msg-${messageId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  return (
+    <div className="msg-nav-rail" role="navigation" aria-label="Jump to message" ref={railRef}>
+      {userMessages.map((m, idx) => {
+        const preview = previewOf(m);
+        const isActive = m.info.id === activeId;
+        return (
+          <button
+            key={m.info.id}
+            type="button"
+            className={`msg-nav-dot ${isActive ? "active" : ""}`}
+            data-msg-id={m.info.id}
+            title={preview || `Message ${idx + 1}`}
+            aria-label={preview || `Message ${idx + 1}`}
+            onClick={() => jumpTo(m.info.id)}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setHover({
+                text: preview || `Message ${idx + 1}`,
+                left: r.right + 8,
+                top: r.top + r.height / 2,
+              });
+            }}
+            onMouseLeave={() => setHover(null)}
+          />
+        );
+      })}
+      {hover && (
+        <span className="msg-nav-tooltip" style={{ left: hover.left, top: hover.top }} role="tooltip">
+          {hover.text}
+        </span>
+      )}
+    </div>
+  );
+});

@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "compile",
+      "problemMatcher": ["$tsc"],
+      "label": "npm: compile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$tsc"],
+      "label": "npm: lint"
+    },
+    {
+      "type": "npm",
+      "script": "watch:extension",
+      "isBackground": true,
+      "problemMatcher": [],
+      "label": "npm: watch:extension",
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "type": "npm",
+      "script": "watch:webview",
+      "isBackground": true,
+      "problemMatcher": [],
+      "label": "npm: watch:webview",
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "watch (both)",
+      "dependsOn": ["npm: watch:extension", "npm: watch:webview"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,632 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "../store/store";
+import { postMessage } from "../api/vscodeApi";
+import { ModelSelector } from "./ModelSelector";
+import { AgentSelector } from "./AgentSelector";
+import { ContextChips } from "./ContextChips";
+import { formatCost, formatTokenCount } from "../utils";
+import { buildSendOptions } from "../compose";
+import type { AttachedContext, CommandInfo, MessageAttachment } from "../api/types";
+
+interface ChatInputProps {
+  sessionId: string;
+}
+
+interface MentionState {
+  active: boolean;
+  start: number;
+  query: string;
+}
+
+const NO_MENTION: MentionState = { active: false, start: -1, query: "" };
+
+function looksLikeFilePath(p: string): boolean {
+  if (p.includes("/") || p.includes("\\")) return true;
+  return /\.[a-z0-9]+$/i.test(p);
+}
+
+export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
+  const [text, setText] = useState("");
+  const [dropFile, setDropFile] = useState(false);
+  const [dropSelection, setDropSelection] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
+  const [slashSelected, setSlashSelected] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
+  const [mentionSelected, setMentionSelected] = useState(0);
+  const [mentionDismissed, setMentionDismissed] = useState(false);
+  const [selTarget, setSelTarget] = useState<number | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachQuery, setAttachQuery] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachRef = useRef<HTMLDivElement>(null);
+
+  const activeFile = useStore((s) => s.activeFile);
+  const selection = useStore((s) => s.selection);
+  const status = useStore((s) => s.sessionStatus[sessionId]);
+  const totalTokens = useStore((s) => s.totalTokens);
+  const totalCost = useStore((s) => s.totalCost);
+  const commands = useStore((s) => s.commands);
+  const agents = useStore((s) => s.agents);
+  const selectedAgent = useStore((s) => s.selectedAgent);
+  const fileResults = useStore((s) => s.fileResults);
+  const enqueueMessage = useStore((s) => s.enqueueMessage);
+  const isBusy = status?.type === "busy";
+  const hasQuestion = useStore(
+    (s) => s.pendingQuestions.some((q) => q.sessionID === sessionId),
+  );
+
+  useEffect(() => {
+    if (sending && isBusy) {
+      setSending(false);
+    }
+  }, [sending, isBusy]);
+
+  useEffect(() => {
+    if (!sending) return;
+    const timer = setTimeout(() => setSending(false), 5000);
+    return () => clearTimeout(timer);
+  }, [sending]);
+
+  useEffect(() => {
+    setSending(false);
+    setText("");
+  }, [sessionId]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [text]);
+
+  useEffect(() => {
+    if (commands.length === 0) {
+      postMessage({ type: "getCommands" });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selTarget !== null && textareaRef.current) {
+      textareaRef.current.selectionStart = selTarget;
+      textareaRef.current.selectionEnd = selTarget;
+      setSelTarget(null);
+    }
+  }, [selTarget, text]);
+
+  const slashQuery = useMemo(() => {
+    if (!text.startsWith("/")) return null;
+    const rest = text.slice(1);
+    if (rest.includes(" ")) return null;
+    return rest;
+  }, [text]);
+
+  useEffect(() => {
+    if (slashQuery !== null) setSlashDismissed(false);
+  }, [slashQuery]);
+
+  const mention = useMemo<MentionState>(() => {
+    const before = text.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx === -1) return NO_MENTION;
+    const segment = before.slice(atIdx + 1);
+    if (/\s/.test(segment)) return NO_MENTION;
+    return { active: true, start: atIdx, query: segment };
+  }, [text, cursorPos]);
+
+  useEffect(() => {
+    if (mention.active) setMentionDismissed(false);
+  }, [mention.active, mention.query]);
+
+  const filteredCommands = useMemo<CommandInfo[]>(() => {
+    if (slashQuery === null) return [];
+    const q = slashQuery.toLowerCase();
+    return commands
+      .filter((c) => !q || c.name.toLowerCase().startsWith(q))
+      .slice(0, 50);
+  }, [commands, slashQuery]);
+
+  const filteredFiles = useMemo<string[]>(() => {
+    if (!mention.active) return [];
+    return fileResults.slice(0, 50);
+  }, [fileResults, mention.active]);
+
+  useEffect(() => {
+    setSlashSelected(0);
+  }, [slashQuery]);
+
+  useEffect(() => {
+    setMentionSelected(0);
+  }, [mention.query, fileResults]);
+
+  useEffect(() => {
+    if (!mention.active) return;
+    const q = mention.query;
+    const timer = setTimeout(() => {
+      postMessage({ type: "findFiles", query: q });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [mention.active, mention.query]);
+
+  useEffect(() => {
+    if (!attachOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (attachRef.current && !attachRef.current.contains(e.target as Node)) setAttachOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [attachOpen]);
+
+  useEffect(() => {
+    if (!attachOpen) {
+      setAttachQuery("");
+      return;
+    }
+    const q = attachQuery.trim();
+    const timer = setTimeout(() => {
+      postMessage({ type: "findFiles", query: q });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [attachOpen, attachQuery]);
+
+  const insertMention = (path: string) => {
+    const insert = "@" + path + " ";
+    const next = text + (text && !text.endsWith(" ") ? " " : "") + insert;
+    setText(next);
+    setCursorPos(next.length);
+    setSelTarget(next.length);
+    setAttachOpen(false);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const slashVisible = slashQuery !== null && !slashDismissed && filteredCommands.length > 0;
+  const mentionVisible = mention.active && !mentionDismissed && filteredFiles.length > 0;
+  const slashSel = Math.min(slashSelected, Math.max(0, filteredCommands.length - 1));
+  const mentionSel = Math.min(mentionSelected, Math.max(0, filteredFiles.length - 1));
+
+  const fileIncluded = activeFile && !dropFile;
+  const selectionIncluded = selection && !dropSelection;
+  const hasContext = !!fileIncluded || !!selectionIncluded;
+
+  const buildContext = (): AttachedContext | undefined => {
+    if (!hasContext) return undefined;
+    const ctx: AttachedContext = {};
+    if (fileIncluded) ctx.filePath = activeFile ?? undefined;
+    if (selectionIncluded) ctx.selection = selection ?? undefined;
+    return ctx;
+  };
+
+  const parseFileMentions = (value: string): MessageAttachment[] | undefined => {
+    const result: MessageAttachment[] = [];
+    const seen = new Set<string>();
+    const tokens = value.split(/\s+/).filter(Boolean);
+    for (const tok of tokens) {
+      if (tok.startsWith("@") && tok.length > 1) {
+        const path = tok.slice(1);
+        if (looksLikeFilePath(path) && !seen.has(path)) {
+          seen.add(path);
+          const base = path.split(/[\\/]/).pop() ?? path;
+          result.push({ url: path, filename: base, mime: "text/plain" });
+        }
+      }
+    }
+    return result.length > 0 ? result : undefined;
+  };
+
+  const dispatchSend = (trimmed: string) => {
+    const attachments = parseFileMentions(trimmed);
+    postMessage({
+      type: "sendMessage",
+      sessionId,
+      text: trimmed,
+      context: buildContext(),
+      options: buildSendOptions(),
+      attachments,
+    });
+  };
+
+  const runSlash = (command: string, args: string) => {
+    if (command === "compact") {
+      // /compact routes to the summarize endpoint (the real opencode compact),
+      // not session.command (which doesn't know "compact" and fails).
+      const model = useStore.getState().selectedModel;
+      if (!model) {
+        useStore.setState({
+          errorMessage: "Select a model first — /compact summarizes using the current model.",
+        });
+      } else {
+        postMessage({ type: "compactSession", sessionId, model });
+      }
+    } else {
+      postMessage({ type: "executeCommand", sessionId, command, args });
+    }
+    setText("");
+  };
+
+  const cycleAgent = () => {
+    const primary = agents.filter((a) => a.mode === "primary" || a.mode === "all");
+    if (primary.length === 0) return;
+    const cur = selectedAgent ? primary.findIndex((a) => a.name === selectedAgent) : -1;
+    const next = primary[(cur + 1) % primary.length];
+    if (!next) return;
+    useStore.getState().setSelectedAgent(next.name);
+    postMessage({ type: "selectAgent", agent: next.name });
+  };
+
+  const send = () => {
+    const trimmed = text.trim();
+    if (!trimmed || (!isBusy && sending)) return;
+    if (trimmed.startsWith("/")) {
+      const spaceIdx = trimmed.indexOf(" ");
+      const command = spaceIdx === -1 ? trimmed.slice(1) : trimmed.slice(1, spaceIdx);
+      const args = spaceIdx === -1 ? "" : trimmed.slice(spaceIdx + 1);
+      runSlash(command, args);
+      return;
+    }
+    if (isBusy) {
+      // Generation in progress: don't dispatch immediately. Queue the message
+      // client-side; it is injected at the next step boundary (see ChatView).
+      enqueueMessage({
+        text: trimmed,
+        context: buildContext(),
+        options: buildSendOptions(),
+        attachments: parseFileMentions(trimmed),
+      });
+      setText("");
+      return;
+    }
+    setSending(true);
+    dispatchSend(trimmed);
+    setText("");
+  };
+
+  // Send straight to the server now — no abort. opencode is trusted to steer
+  // the clarification in at a safe point rather than interrupt mid-thought.
+  const forceSend = () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    dispatchSend(trimmed);
+    setText("");
+  };
+
+  const abort = () => {
+    postMessage({ type: "abortSession", sessionId });
+  };
+
+  const selectCommand = (cmd: CommandInfo) => {
+    const rest = slashQuery !== null ? text.slice(1 + slashQuery.length) : "";
+    const newText = "/" + cmd.name + " " + rest;
+    const cursor = 1 + cmd.name.length + 1;
+    setText(newText);
+    setSelTarget(cursor);
+    setSlashDismissed(true);
+  };
+
+  const selectFile = (path: string) => {
+    const before = text.slice(0, mention.start);
+    const after = text.slice(cursorPos);
+    const insert = "@" + path + " ";
+    const newText = before + insert + after;
+    const cursor = before.length + insert.length;
+    setText(newText);
+    setSelTarget(cursor);
+    setMentionDismissed(true);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      send();
+      return;
+    }
+
+    if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (slashVisible) {
+        const cmd = filteredCommands[slashSel];
+        if (cmd) {
+          e.preventDefault();
+          runSlash(cmd.name, "");
+          setSlashDismissed(true);
+        }
+        return;
+      }
+      if (!mentionVisible) {
+        e.preventDefault();
+        cycleAgent();
+        return;
+      }
+    }
+
+    if (
+      e.key === "Escape" &&
+      attachOpen &&
+      !slashVisible &&
+      !mentionVisible
+    ) {
+      e.preventDefault();
+      setAttachOpen(false);
+      return;
+    }
+
+    if (slashVisible) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashSelected((i) => (i + 1) % filteredCommands.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashSelected((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
+        return;
+      }
+      if (e.key === "Enter") {
+        const cmd = filteredCommands[slashSel];
+        if (cmd) {
+          e.preventDefault();
+          selectCommand(cmd);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashDismissed(true);
+        return;
+      }
+    } else if (mentionVisible) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionSelected((i) => (i + 1) % filteredFiles.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionSelected((i) => (i - 1 + filteredFiles.length) % filteredFiles.length);
+        return;
+      }
+      if (e.key === "Enter") {
+        const file = filteredFiles[mentionSel];
+        if (file) {
+          e.preventDefault();
+          selectFile(file);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionDismissed(true);
+        return;
+      }
+    }
+  };
+
+  const syncCursor = () => {
+    const el = textareaRef.current;
+    if (el) setCursorPos(el.selectionStart ?? 0);
+  };
+
+  const tokenTotal = totalTokens.input + totalTokens.output + totalTokens.reasoning;
+  const showCharCount = text.length > 0;
+  const lineCount = Math.max(1, text.split("\n").length);
+
+  return (
+    <div className="chat-input-wrap">
+      <div className="chat-input-inner">
+        {hasContext && (
+          <ContextChips
+            onRemove={(key) => {
+              if (key === "file") setDropFile(true);
+              if (key === "selection") setDropSelection(true);
+            }}
+          />
+        )}
+        <div className="chat-input-row">
+          <div className={`attach-wrap ${attachOpen ? "open" : ""}`} ref={attachRef}>
+            <button
+              className={`icon-button attach-btn ${(fileIncluded || selectionIncluded) ? "active" : ""}`}
+              title="Attach context"
+              aria-label="Attach context"
+              aria-expanded={attachOpen}
+              onClick={() => setAttachOpen((v) => !v)}
+            >
+              <PaperclipIcon />
+            </button>
+            {attachOpen && (
+              <div className="attach-popover">
+                <div className="attach-section">
+                  <div className="attach-section-title">Current context</div>
+                  {activeFile ? (
+                    <button
+                      className={`attach-item ${fileIncluded ? "checked" : ""}`}
+                      onClick={() => setDropFile((v) => !v)}
+                    >
+                      <span className="attach-check">{fileIncluded ? "✓" : ""}</span>
+                      <span className="attach-item-icon">📄</span>
+                      <span className="attach-item-label" title={activeFile}>{activeFile.split(/[\\/]/).pop()}</span>
+                    </button>
+                  ) : (
+                    <div className="attach-empty">No active file</div>
+                  )}
+                  {selection && (
+                    <button
+                      className={`attach-item ${selectionIncluded ? "checked" : ""}`}
+                      onClick={() => setDropSelection((v) => !v)}
+                    >
+                      <span className="attach-check">{selectionIncluded ? "✓" : ""}</span>
+                      <span className="attach-item-icon">✂</span>
+                      <span className="attach-item-label">Editor selection</span>
+                    </button>
+                  )}
+                </div>
+                <div className="attach-section">
+                  <div className="attach-section-title">Attach a file</div>
+                  <input
+                    className="attach-search"
+                    type="text"
+                    placeholder="Search files…"
+                    value={attachQuery}
+                    autoFocus
+                    onChange={(e) => setAttachQuery(e.target.value)}
+                  />
+                  <div className="attach-results">
+                    {fileResults.length === 0 && attachQuery.trim() && (
+                      <div className="attach-empty">No files match “{attachQuery}”.</div>
+                    )}
+                    {fileResults.slice(0, 30).map((f) => (
+                      <button
+                        key={f}
+                        className="attach-result"
+                        title={f}
+                        onClick={() => insertMention(f)}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="chat-input-textarea-wrap">
+            {slashVisible && (
+              <div className="slash-dropdown">
+                {filteredCommands.map((cmd, i) => (
+                  <div
+                    key={cmd.name}
+                    className={`slash-item ${i === slashSel ? "selected" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectCommand(cmd);
+                    }}
+                    onMouseEnter={() => setSlashSelected(i)}
+                  >
+                    <span className="slash-item-name">/{cmd.name}</span>
+                    {cmd.description && <span className="slash-item-desc">{cmd.description}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {mentionVisible && (
+              <div className="slash-dropdown">
+                {filteredFiles.map((file, i) => (
+                  <div
+                    key={file}
+                    className={`slash-item ${i === mentionSel ? "selected" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectFile(file);
+                    }}
+                    onMouseEnter={() => setMentionSelected(i)}
+                  >
+                    <span className="slash-item-name slash-item-file">@{file}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className="chat-input-textarea"
+              placeholder={isBusy ? "Agent is working…" : "Ask anything… (⌘/Ctrl+Enter to send)"}
+              value={text}
+              rows={1}
+              disabled={hasQuestion}
+              onChange={(e) => {
+                setText(e.target.value);
+                setCursorPos(e.target.selectionStart ?? 0);
+              }}
+              onKeyDown={onKeyDown}
+              onSelect={syncCursor}
+              onClick={syncCursor}
+              onKeyUp={syncCursor}
+            />
+          </div>
+          <div className="chat-input-actions">
+            <AgentSelector compact />
+            <ModelSelector compact />
+            {isBusy ? (
+              text.trim() ? (
+                <>
+                  <button
+                    className="send-btn"
+                    onClick={send}
+                    title="Queue — inject at the next step boundary"
+                  >
+                    <SendIcon />
+                  </button>
+                  <button
+                    className="force-btn"
+                    onClick={forceSend}
+                    title="Send now — opencode steers it in at a safe point"
+                  >
+                    <SendIcon />
+                  </button>
+                </>
+              ) : (
+                <button className="abort-btn" onClick={abort} title="Stop generation">
+                  <span className="abort-icon">■</span>
+                  <span className="abort-text">Stop</span>
+                </button>
+              )
+            ) : (
+              <button
+                className="send-btn"
+                onClick={send}
+                disabled={!text.trim() || sending}
+                title={sending ? "Sending…" : "Send"}
+              >
+                {sending ? <SendingSpinner /> : <SendIcon />}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="chat-input-meta">
+          <div className="chat-input-meta-left">
+            {showCharCount && (
+              <span className="meta-chip" title={`${lineCount} line(s)`}>
+                {text.length} chars
+              </span>
+            )}
+          </div>
+          <div className="chat-input-meta-right">
+            {totalCost > 0 && (
+              <span className="meta-chip" title="Total cost (all sessions)">
+                {formatCost(totalCost)}
+              </span>
+            )}
+            {tokenTotal > 0 && (
+              <span className="meta-chip" title="Total tokens (all sessions)">
+                {formatTokenCount(tokenTotal)} tokens
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaperclipIcon(): React.ReactElement {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M12.5 7.5 L7.5 12.5 a3 3 0 1 1 -4.2 -4.2 L9 2.6 a2 2 0 1 1 2.8 2.8 L5.8 11.4 a1 1 0 1 1 -1.4 -1.4 L10 5.4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+function SendIcon(): React.ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2.5 8 H12.5 M8 3.5 L12.5 8 L8 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SendingSpinner(): React.ReactElement {
+  return <span className="send-spinner" aria-label="Sending" />;
+}
