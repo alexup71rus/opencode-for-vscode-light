@@ -141,8 +141,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (info.url !== client.url) {
           log(`reconnecting to server: ${info.url}`);
           client.updateServer(info);
-          eventStream!.stop();
-          void eventStream!.start();
+          // restart() awaits the old connect loop's full shutdown before
+          // starting a new one, so we never briefly hold two SSE streams
+          // and the dying loop cannot null the new abortController.
+          await eventStream!.restart();
         }
         return true;
       } catch (err) {
@@ -231,11 +233,7 @@ export async function deactivate(): Promise<void> {
   } catch {
     // ignore
   }
-  try {
-    eventStream?.stop();
-  } catch {
-    // ignore
-  }
+  await stopEventStreamWithCeiling();
   try {
     await serverManager?.dispose();
   } catch {
@@ -244,4 +242,29 @@ export async function deactivate(): Promise<void> {
   sessionService = undefined;
   eventStream = undefined;
   serverManager = undefined;
+}
+
+/**
+ * Extension shutdown path. EventStream.stop() has honest "wait until the
+ * connect loop fully exits" semantics, which is what restart() needs; but a
+ * stuck SDK/SSE reader could hang shutdown indefinitely. Race against a 2s
+ * ceiling so VS Code is never blocked by a wedged stream.
+ */
+async function stopEventStreamWithCeiling(): Promise<void> {
+  const stopPromise = eventStream?.stop();
+  if (!stopPromise) return;
+
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      stopPromise,
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(resolve, 2000);
+      }),
+    ]);
+  } catch {
+    // Ignore shutdown errors.
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
