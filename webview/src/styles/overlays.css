@@ -393,21 +393,22 @@
 .message-edit {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  max-width: 560px;
+  max-width: 100%;
 }
 
 .message-edit-textarea {
   width: 100%;
-  resize: vertical;
-  min-height: 56px;
-  padding: 8px 10px;
+  resize: both;
+  min-height: 140px;
+  max-height: 70vh;
+  padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
-  font-family: var(--vscode-font-family);
+  font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
   font-size: 13px;
   line-height: 1.5;
   box-sizing: border-box;
