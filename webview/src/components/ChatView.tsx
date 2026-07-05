@@ -5,6 +5,7 @@ import type { AttachedContext, MessageWithParts } from "../api/types";
 import { buildSendOptions } from "../compose";
 import { MessageBubble } from "./MessageBubble";
 import { MessageNavRail } from "./MessageNavRail";
+import { Logo } from "./Logo";
 
 interface ChatViewProps {
   sessionId: string;
@@ -256,7 +257,7 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
   if (messages.length === 0) {
     return (
       <div className="chat-empty">
-        <div className="chat-empty-glow">✦</div>
+        <div className="chat-empty-glow"><Logo size={56} /></div>
         <div className="chat-empty-title">How can I help?</div>
         <div className="chat-empty-sub">Ask anything, or include a file for context.</div>
         <div className="chat-empty-examples">
