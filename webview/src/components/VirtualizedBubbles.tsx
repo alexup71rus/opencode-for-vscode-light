@@ -233,10 +233,20 @@ export function VirtualizedBubbles({
     (key: string) => {
       const idx = items.findIndex((it) => it.key === key);
       if (idx < 0) return;
-      setRange((prev) => {
-        if (idx >= prev.start && idx <= prev.end) return prev;
-        return { ...prev, start: Math.max(0, idx - 2), end: Math.min(count - 1, idx + 2) };
-      });
+      const start = Math.max(0, idx - 2);
+      const end = Math.min(count - 1, idx + 2);
+      // Compute estimated spacers for the widened window so the target renders
+      // at ~its real offset. Inheriting the previous topSpacer (often from the
+      // opposite end of a long session) would place the bubble at a wildly wrong
+      // position and scrollIntoView would race off, then recompute would snap
+      // the window straight back — the jump effectively did nothing.
+      let topSpacer = 0;
+      for (let i = 0; i < start; i++) topSpacer += getHeight(i);
+      let bottomSpacer = 0;
+      for (let i = end + 1; i < count; i++) bottomSpacer += getHeight(i);
+      setRange((prev) =>
+        idx >= prev.start && idx <= prev.end ? prev : { start, end, firstVisible: idx, topSpacer, bottomSpacer },
+      );
       requestAnimationFrame(() => {
         // Escape for a double-quoted attribute value (not CSS.escape, which
         // targets the identifier context and would corrupt chars like "." / ":").
@@ -245,7 +255,7 @@ export function VirtualizedBubbles({
         el?.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     },
-    [items, count],
+    [items, count, getHeight],
   );
 
   useEffect(() => {
