@@ -101,6 +101,7 @@ export interface AppState {
   config: ProjectConfig | null;
 
   permissionRules: PermissionRulesSnapshot | null;
+  permissionNotice: { kind: "externalChange"; message: string } | null;
 
   activeFilePath: string | null;
   activeFileName: string | null;
@@ -156,6 +157,7 @@ export interface AppState {
   savePermissionRule: (rule: PermissionRule) => void;
   removePermissionRule: (tool: PermissionTool, pattern: string, source: "global" | "project") => void;
   reloadServer: () => void;
+  dismissPermissionNotice: () => void;
   setSidebarWidth: (w: number, persist?: boolean) => void;
   setRightWidth: (w: number, persist?: boolean) => void;
   enqueueMessage: (m: Omit<QueuedMessage, "id">, priority?: boolean) => void;
@@ -246,6 +248,7 @@ const initialState = {
   helpOpen: false,
   config: null as ProjectConfig | null,
   permissionRules: null as PermissionRulesSnapshot | null,
+  permissionNotice: null as { kind: "externalChange"; message: string } | null,
   activeFilePath: null as string | null,
   activeFileName: null as string | null,
   selection: null as string | null,
@@ -610,6 +613,10 @@ export const useStore = create<AppState>((set, get) => ({
         set({ permissionRules: msg.snapshot });
         break;
 
+      case "permissionNotice":
+        set({ permissionNotice: { kind: msg.kind, message: msg.message } });
+        break;
+
       case "stats":
         set({ totalCost: msg.totalCost, totalTokens: msg.totalTokens });
         break;
@@ -749,4 +756,5 @@ export const useStore = create<AppState>((set, get) => ({
   removePermissionRule: (tool, pattern, source) =>
     postMessage({ type: "removePermissionRule", tool, pattern, source }),
   reloadServer: () => postMessage({ type: "reloadServer" }),
+  dismissPermissionNotice: () => set({ permissionNotice: null }),
 }));

@@ -439,6 +439,7 @@ export type ExtensionToWebview =
   | { type: "context"; filePath: string | null; fileName: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "filesExist"; results: Record<string, boolean> }
+  | { type: "permissionNotice"; kind: "externalChange"; message: string }
   | { type: "error"; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 

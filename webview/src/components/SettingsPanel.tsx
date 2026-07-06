@@ -34,6 +34,8 @@ export function SettingsPanel(): React.ReactElement | null {
   const savePermissionRule = useStore((s) => s.savePermissionRule);
   const removePermissionRule = useStore((s) => s.removePermissionRule);
   const reloadServer = useStore((s) => s.reloadServer);
+  const permissionNotice = useStore((s) => s.permissionNotice);
+  const dismissPermissionNotice = useStore((s) => s.dismissPermissionNotice);
 
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>(settings.enabledTools);
@@ -76,6 +78,12 @@ export function SettingsPanel(): React.ReactElement | null {
   useEffect(() => {
     if (newTool !== "bash") setNewPattern("*");
   }, [newTool]);
+
+  useEffect(() => {
+    if (!permissionNotice) return;
+    const t = setTimeout(() => dismissPermissionNotice(), 8000);
+    return () => clearTimeout(t);
+  }, [permissionNotice, dismissPermissionNotice]);
 
   useEffect(() => {
     if (!open) return;
@@ -529,6 +537,14 @@ export function SettingsPanel(): React.ReactElement | null {
 
           {tab === "permissions" && (
             <section className="settings-section">
+              {permissionNotice && (
+                <div className="perm-notice" role="status">
+                  <span className="perm-notice-text">{permissionNotice.message}</span>
+                  <button className="perm-notice-dismiss" title="Dismiss" onClick={() => dismissPermissionNotice()}>
+                    ✕
+                  </button>
+                </div>
+              )}
               <div className="settings-label-row">
                 <div className="settings-section-title">Permission rules</div>
                 <button

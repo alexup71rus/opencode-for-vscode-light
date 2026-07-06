@@ -15,7 +15,7 @@ import type { StatsService } from "../services/statsService";
 import type { EventStream } from "../bridge/eventStream";
 import { ContextProvider } from "./contextProvider";
 import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
-import { isPermissionTool, pickWriteTarget, writePermissionRule, removePermissionRule, loadPermissionRules, configFilePath, type WriteScope } from "./permissionConfig";
+import { isPermissionTool, pickWriteTarget, writePermissionRule, removePermissionRule, loadPermissionRules, configFilePath, globalConfigDir, type WriteScope } from "./permissionConfig";
 
 import type {
   ExtensionToWebview,
@@ -54,6 +54,8 @@ export class WebviewPanelManager {
   private currentSkills: SkillInfo[] = [];
   private currentMcpStatus: Record<string, McpServerStatus> = {};
   private currentLspStatus: LspStatusInfo[] = [];
+  private readonly pendingSelfWrites = new Set<string>();
+  private permissionReloadTimer: NodeJS.Timeout | undefined;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -125,6 +127,7 @@ export class WebviewPanelManager {
     );
 
     this.attachServiceListeners();
+    this.setupPermissionConfigWatcher();
   }
 
   hide(): void {
@@ -135,6 +138,10 @@ export class WebviewPanelManager {
 
   dispose(): void {
     this.detachServiceListeners();
+    if (this.permissionReloadTimer) {
+      clearTimeout(this.permissionReloadTimer);
+      this.permissionReloadTimer = undefined;
+    }
     for (const d of this.disposables) {
       d.dispose();
     }
@@ -498,6 +505,7 @@ export class WebviewPanelManager {
         try {
           const workspace = this.client.workdirPath;
           const file = configFilePath(msg.rule.source, workspace);
+          this.markSelfWrite(file);
           writePermissionRule(file, {
             tool: msg.rule.tool,
             pattern: msg.rule.pattern,
@@ -514,6 +522,7 @@ export class WebviewPanelManager {
         try {
           const workspace = this.client.workdirPath;
           const file = configFilePath(msg.source, workspace);
+          this.markSelfWrite(file);
           removePermissionRule(file, msg.tool, msg.pattern);
           this.pushPermissionRules();
         } catch (err) {
@@ -544,6 +553,7 @@ export class WebviewPanelManager {
     const target = pickWriteTarget(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
     for (const pattern of patterns) {
       try {
+        this.markSelfWrite(target.path);
         writePermissionRule(target.path, { tool, pattern, action: "allow", source: target.scope });
       } catch (err) {
         this.reportError(err, "persist always-allow");
@@ -555,6 +565,42 @@ export class WebviewPanelManager {
     const workspace = this.client.workdirPath;
     const snapshot = loadPermissionRules(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
     this.postMessage({ type: "permissionRules", snapshot });
+  }
+
+  private setupPermissionConfigWatcher(): void {
+    const folders = [globalConfigDir(), this.client.workdirPath];
+    for (const folder of folders) {
+      const pattern = new vscode.RelativePattern(vscode.Uri.file(folder), "opencode.{json,jsonc}");
+      const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+      const handler = (uri: vscode.Uri) => this.onPermissionConfigChanged(uri.fsPath);
+      watcher.onDidChange(handler, undefined, this.disposables);
+      watcher.onDidCreate(handler, undefined, this.disposables);
+      watcher.onDidDelete(handler, undefined, this.disposables);
+      this.disposables.push(watcher);
+    }
+  }
+
+  private markSelfWrite(filePath: string): void {
+    this.pendingSelfWrites.add(filePath);
+    setTimeout(() => this.pendingSelfWrites.delete(filePath), 500);
+  }
+
+  private onPermissionConfigChanged(filePath: string): void {
+    if (this.pendingSelfWrites.has(filePath)) return;
+    if (this.permissionReloadTimer) clearTimeout(this.permissionReloadTimer);
+    this.permissionReloadTimer = setTimeout(() => {
+      this.permissionReloadTimer = undefined;
+      try {
+        this.pushPermissionRules();
+        this.postMessage({
+          type: "permissionNotice",
+          kind: "externalChange",
+          message: "Config changed externally — reload the window to apply.",
+        });
+      } catch (err) {
+        this.reportError(err, "reload permission rules after external change");
+      }
+    }, 200);
   }
 
   private attachServiceListeners(): void {
