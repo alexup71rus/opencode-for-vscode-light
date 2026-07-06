@@ -66,15 +66,6 @@ export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.
 
           <div className="permission-actions">
             <button
-              className="abort-btn"
-              onClick={stop}
-              title="Stop generation — aborts the running session"
-              aria-label="Stop generation"
-            >
-              <span className="abort-icon" aria-hidden="true">■</span>
-            </button>
-            <span className="permission-actions-spacer" />
-            <button
               className="btn btn-sm"
               onClick={() => reply("reject")}
               title="Block this call — the chat continues"
@@ -94,6 +85,15 @@ export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.
               title="Allow just this call"
             >
               Allow once
+            </button>
+            <span className="permission-actions-spacer" />
+            <button
+              className="abort-btn"
+              onClick={stop}
+              title="Stop generation — aborts the running session"
+              aria-label="Stop generation"
+            >
+              <span className="abort-icon" aria-hidden="true">■</span>
             </button>
           </div>
         </div>

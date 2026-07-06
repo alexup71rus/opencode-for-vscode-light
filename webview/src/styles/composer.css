@@ -445,7 +445,8 @@
   gap: 8px;
 }
 
-/* Pushes the approval buttons to the right, Stop stays on the left. */
+/* Pushes Stop to the far right (its consistent place across chat + overlay);
+   approvals stay grouped on the left for separation. */
 .permission-actions-spacer {
   flex: 1 1 auto;
 }
