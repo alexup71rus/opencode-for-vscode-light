@@ -6,17 +6,6 @@ interface PermissionOverlayProps {
   sessionId: string;
 }
 
-/**
- * Shows pending tool-call approvals as a bottom sheet over the composer,
- * mirroring QuestionOverlay. One approval is shown at a time (the oldest
- * pending); acting on it (Allow / Reject) replies and removes it, so the next
- * pending becomes current. Includes a circular Stop button (reuses .abort-btn)
- * that aborts the whole session — distinct from Reject, which only blocks the
- * individual call and lets the chat continue.
- *
- * Backed by the permission.asked event -> sessionService normalization, and
- * POST /session/:id/permissions/:permissionID via replyPermission.
- */
 export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.ReactElement | null {
   const all = useStore((s) => s.pendingPermissions);
   const perms = useMemo(
@@ -35,7 +24,6 @@ export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.
   const reply = (decision: "once" | "always" | "reject") => {
     postMessage({ type: "replyPermission", sessionId, permissionId: current.id, decision });
   };
-  const stop = () => postMessage({ type: "abortSession", sessionId });
 
   return (
     <div className="permission-overlay" role="dialog" aria-label="Tool approval required">
@@ -68,7 +56,7 @@ export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.
             <button
               className="btn btn-sm"
               onClick={() => reply("reject")}
-              title="Block this call — the chat continues"
+              title="Reject — deny the tool and stop the run"
             >
               Reject
             </button>
@@ -85,15 +73,6 @@ export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.
               title="Allow just this call"
             >
               Allow once
-            </button>
-            <span className="permission-actions-spacer" />
-            <button
-              className="abort-btn"
-              onClick={stop}
-              title="Stop generation — aborts the running session"
-              aria-label="Stop generation"
-            >
-              <span className="abort-icon" aria-hidden="true">■</span>
             </button>
           </div>
         </div>
