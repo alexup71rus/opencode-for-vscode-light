@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { randomBytes } from "crypto";
 import { readFileSync, existsSync } from "fs";
+import * as os from "os";
 import * as path from "path";
 import { stat } from "fs/promises";
 import { join } from "path";
@@ -14,6 +15,7 @@ import type { StatsService } from "../services/statsService";
 import type { EventStream } from "../bridge/eventStream";
 import { ContextProvider } from "./contextProvider";
 import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
+import { isPermissionTool, pickWriteTarget, writePermissionRule } from "./permissionConfig";
 
 import type {
   ExtensionToWebview,
@@ -237,6 +239,14 @@ export class WebviewPanelManager {
         break;
       }
       case "replyPermission": {
+        // Capture the request before the awaited reply so the persist below is
+        // race-free (the server's permission.replied event may evict it).
+        const alwaysPersist =
+          msg.decision === "always"
+            ? this.sessionService
+                .getPendingPermissions(msg.sessionId)
+                .find((p) => p.id === msg.permissionId)
+            : undefined;
         try {
           await this.sessionService.replyPermission(msg.sessionId, msg.permissionId, msg.decision);
           // Optimistically clear the card from the store. The server's
@@ -247,6 +257,7 @@ export class WebviewPanelManager {
             sessionId: msg.sessionId,
             permissionID: msg.permissionId,
           });
+          if (alwaysPersist) this.persistAlwaysAllow(alwaysPersist);
         } catch (err) {
           this.reportError(err, "reply to permission");
         }
@@ -477,6 +488,22 @@ export class WebviewPanelManager {
       }
       default: {
         break;
+      }
+    }
+  }
+
+  private persistAlwaysAllow(perm: Permission): void {
+    const tool = perm.type;
+    if (!isPermissionTool(tool)) return;
+    const patterns = (perm as Permission & { always?: string[] }).always;
+    if (!patterns?.length) return;
+    const workspace = this.client.workdirPath;
+    const target = pickWriteTarget(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
+    for (const pattern of patterns) {
+      try {
+        writePermissionRule(target.path, { tool, pattern, action: "allow", source: target.scope });
+      } catch (err) {
+        this.reportError(err, "persist always-allow");
       }
     }
   }

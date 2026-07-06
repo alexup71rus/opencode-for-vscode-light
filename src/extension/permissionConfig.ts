@@ -19,11 +19,12 @@ export interface PermissionRule {
 
 const FORMATTING: ModificationOptions["formattingOptions"] = { insertSpaces: true, tabSize: 2 };
 
-function isPermissionTool(key: string): key is PermissionTool {
-  return (PERMISSION_TOOLS as string[]).includes(key);
-}
 function isPermissionAction(value: unknown): value is PermissionAction {
   return typeof value === "string" && ACTION_VALUES.has(value);
+}
+
+export function isPermissionTool(key: string): key is PermissionTool {
+  return (PERMISSION_TOOLS as string[]).includes(key);
 }
 
 // Ported verbatim from packages/core/src/util/wildcard.ts @ v1.17.13 — do not "simplify":
