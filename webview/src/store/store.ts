@@ -102,6 +102,9 @@ export interface AppState {
 
   permissionRules: PermissionRulesSnapshot | null;
   permissionNotice: { kind: "externalChange"; message: string } | null;
+  // Local UI flag: true between clicking "Reload to apply" and the server
+  // coming back ready/error. Drives the button's busy label.
+  permissionReloading: boolean;
 
   activeFilePath: string | null;
   activeFileName: string | null;
@@ -249,6 +252,7 @@ const initialState = {
   config: null as ProjectConfig | null,
   permissionRules: null as PermissionRulesSnapshot | null,
   permissionNotice: null as { kind: "externalChange"; message: string } | null,
+  permissionReloading: false,
   activeFilePath: null as string | null,
   activeFileName: null as string | null,
   selection: null as string | null,
@@ -617,6 +621,10 @@ export const useStore = create<AppState>((set, get) => ({
         set({ permissionNotice: { kind: msg.kind, message: msg.message } });
         break;
 
+      case "clearPermissionNotice":
+        set({ permissionNotice: null });
+        break;
+
       case "stats":
         set({ totalCost: msg.totalCost, totalTokens: msg.totalTokens });
         break;
@@ -678,6 +686,8 @@ export const useStore = create<AppState>((set, get) => ({
           isManaged: msg.isManaged ?? s.isManaged,
           externalUrl: msg.externalUrl ?? s.externalUrl,
           errorMessage: msg.status === "error" ? (msg.message ?? s.errorMessage) : null,
+          // A ready/error transition means a pending reload has finished.
+          permissionReloading: msg.status === "starting" ? s.permissionReloading : false,
         }));
         break;
     }
@@ -755,6 +765,11 @@ export const useStore = create<AppState>((set, get) => ({
   savePermissionRule: (rule) => postMessage({ type: "savePermissionRule", rule }),
   removePermissionRule: (tool, pattern, source) =>
     postMessage({ type: "removePermissionRule", tool, pattern, source }),
-  reloadServer: (force?: boolean) => postMessage({ type: "reloadServer", force }),
+  reloadServer: (force?: boolean) => {
+    // Local busy flag so the "Reload to apply" button can show a restarting
+    // state immediately on click. Cleared by the next ready/error serverStatus.
+    set({ permissionReloading: true });
+    postMessage({ type: "reloadServer", force });
+  },
   dismissPermissionNotice: () => set({ permissionNotice: null }),
 }));

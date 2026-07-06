@@ -4,11 +4,16 @@ import * as path from "node:path";
 import { modify, applyEdits, parse, type JSONPath, type ModificationOptions } from "jsonc-parser";
 
 export type PermissionAction = "allow" | "ask" | "deny";
-export type PermissionTool = "edit" | "bash" | "webfetch" | "doom_loop" | "external_directory";
+// The engine's evaluate() matches the tool name with the same wildcard matcher
+// it uses for patterns, so ANY string is accepted as a permission key — not
+// just the 5 in the SDK's static type. Configs in the wild use grep/task/read
+// and granular objects for non-bash tools (e.g. edit: {"*.md":"allow"}).
+// We keep the SDK's 5 as the "standard" picker suggestions but do not restrict
+// to them.
+export type PermissionTool = string;
 
-export const PERMISSION_TOOLS: PermissionTool[] = ["edit", "bash", "webfetch", "doom_loop", "external_directory"];
+export const PERMISSION_TOOLS: PermissionTool[] = ["bash", "edit", "webfetch", "doom_loop", "external_directory"];
 const ACTION_VALUES: ReadonlySet<string> = new Set(["allow", "ask", "deny"]);
-const GRANULAR_TOOLS: ReadonlySet<PermissionTool> = new Set(["bash"]);
 
 export interface PermissionRule {
   tool: PermissionTool;
@@ -23,8 +28,10 @@ function isPermissionAction(value: unknown): value is PermissionAction {
   return typeof value === "string" && ACTION_VALUES.has(value);
 }
 
-export function isPermissionTool(key: string): key is PermissionTool {
-  return (PERMISSION_TOOLS as string[]).includes(key);
+// Any non-empty string is a valid tool key — the engine matches tool names via
+// wildcard too. Used only to guard against junk like "" or numeric keys.
+function isPermissionToolKey(key: string): boolean {
+  return typeof key === "string" && key.length > 0;
 }
 
 // Ported verbatim from packages/core/src/util/wildcard.ts @ v1.17.13 — do not "simplify":
@@ -41,20 +48,21 @@ export function wildcardMatch(input: string, pattern: string): boolean {
   return new RegExp("^" + escaped + "$", process.platform === "win32" ? "si" : "s").test(normalized);
 }
 
-// Mirror of engine fromConfig (permission/index.ts:186-198): flat string -> {pattern:"*"};
-// granular {pattern:action} honoured ONLY for tools in GRANULAR_TOOLS (schema-validity).
-// Unknown tool keys and non-schema values are ignored so we never emit config the engine
-// would strip or a future version would reject.
+// Mirror of engine fromConfig (permission/index.ts:186-198): flat string ->
+// {pattern:"*"}; granular {pattern:action} honoured for ANY tool (the engine
+// matches tool names via wildcard too, so e.g. edit:{"*.md":"allow"} and
+// grep:"allow" are both live). Non-action values are ignored so we never
+// propagate junk, but tool keys are NOT restricted to a fixed set.
 export function parsePermissionBlock(permission: unknown, source: "global" | "project"): PermissionRule[] {
   if (!permission || typeof permission !== "object") return [];
   const rules: PermissionRule[] = [];
   for (const [key, value] of Object.entries(permission as Record<string, unknown>)) {
-    if (!isPermissionTool(key)) continue;
+    if (!isPermissionToolKey(key)) continue;
     if (typeof value === "string") {
       if (isPermissionAction(value)) rules.push({ tool: key, pattern: "*", action: value, source });
       continue;
     }
-    if (value && typeof value === "object" && GRANULAR_TOOLS.has(key)) {
+    if (value && typeof value === "object") {
       for (const [pat, act] of Object.entries(value as Record<string, unknown>)) {
         if (isPermissionAction(act)) rules.push({ tool: key, pattern: pat, action: act, source });
       }
@@ -90,8 +98,13 @@ export interface WriteTarget {
   path: string;
 }
 
-export function pickWriteTarget(workspace: string, home: string, hasGitRoot: boolean): WriteTarget {
-  const scope: WriteScope = workspace !== home && hasGitRoot ? "project" : "global";
+export function pickWriteTarget(workspace: string, home: string): WriteTarget {
+  // Where new permission rules are written:
+  //   - workspace == home  → global (there is no meaningful "project" scope)
+  //   - workspace != home  → project (the workspace's own opencode.json[|c])
+  // Git presence is NOT consulted: the user decides scope by which folder they
+  // opened, not by repo state.
+  const scope: WriteScope = workspace === home ? "global" : "project";
   return { scope, path: configFilePath(scope, workspace) };
 }
 
@@ -140,7 +153,7 @@ function readPermissionBlock(text: string): unknown {
   }
 }
 
-export function loadPermissionRules(workspace: string, home: string, hasGitRoot: boolean): PermissionRulesSnapshot {
+export function loadPermissionRules(workspace: string, home: string): PermissionRulesSnapshot {
   const globalPath = configFilePath("global", workspace);
   const projectPath = configFilePath("project", workspace);
   const rules: PermissionRule[] = [];
@@ -150,7 +163,7 @@ export function loadPermissionRules(workspace: string, home: string, hasGitRoot:
   if (fs.existsSync(projectPath)) {
     rules.push(...parsePermissionBlock(readPermissionBlock(fs.readFileSync(projectPath, "utf8")), "project"));
   }
-  const target = pickWriteTarget(workspace, home, hasGitRoot);
+  const target = pickWriteTarget(workspace, home);
   return {
     rules,
     effective: computeEffective(rules),
@@ -192,7 +205,8 @@ function readOrCreateText(filePath: string): string {
   return JSON.stringify({ $schema: "https://opencode.ai/config.json" }, null, 2);
 }
 
-// Rebuild a bash tool object so "*" sorts first (so specifics stay live under last-match-wins).
+// Rebuild a tool object so "*" sorts first (so specifics stay live under
+// last-match-wins). Applies to any tool that has a granular object form.
 function rebuildWithStarFirst(text: string, tool: PermissionTool, next: Record<string, PermissionAction>): string {
   const keys = Object.keys(next).sort((a, b) => (a === "*" ? -1 : b === "*" ? 1 : 0));
   const ordered: Record<string, PermissionAction> = {};
@@ -218,22 +232,30 @@ function existingGranular(text: string, tool: PermissionTool): Record<string, Pe
   return out;
 }
 
-// Write one rule, comment-safe via jsonc-parser. Granular {pattern:action} for bash only;
-// other tools are collapsed to a flat string (pattern forced to "*"). Enforces "*"-first
-// ordering within a bash object. NOTE: the "*"-first rebuild strips inline comments inside
-// that single tool object (acceptable; the rest of the file keeps its comments).
+// Write one rule, comment-safe via jsonc-parser. The engine accepts BOTH a flat
+// string and a granular {pattern:action} object for any tool, so we choose the
+// representation by the rule's pattern and the file's existing shape:
+//   - pattern "*" and the tool has no other specifics  → flat string (cleaner)
+//   - pattern "*" but other specifics exist             → granular, "*" sorted first
+//   - specific pattern                                  → granular
+// Enforces "*"-first ordering within a granular object. NOTE: the "*"-first
+// rebuild strips inline comments inside that single tool object (acceptable;
+// the rest of the file keeps its comments).
 export function writePermissionRule(filePath: string, rule: PermissionRule): { changed: boolean; text: string } {
   const before = readOrCreateText(filePath);
-  const granular = GRANULAR_TOOLS.has(rule.tool);
-  if (!granular && rule.pattern !== "*") {
-    rule = { ...rule, pattern: "*" };
-  }
+  const existing = existingGranular(before, rule.tool);
+  const hasOtherSpecifics = existing
+    ? Object.keys(existing).some((k) => k !== "*" && k !== rule.pattern)
+    : false;
+  // Granular form is needed when writing a specific pattern OR when the tool
+  // already has other specifics that a flat string would clobber.
+  const granular = rule.pattern !== "*" || hasOtherSpecifics || Boolean(existing && rule.pattern === "*" && Object.keys(existing).some((k) => k !== "*"));
   let after: string;
   if (granular && rule.pattern === "*") {
-    const existing = existingGranular(before, rule.tool) ?? {};
-    const others = Object.keys(existing).filter((k) => k !== "*");
+    const merged = { ...(existing ?? {}), "*": rule.action };
+    const others = Object.keys(merged).filter((k) => k !== "*");
     if (others.length) {
-      after = rebuildWithStarFirst(before, rule.tool, { ...existing, "*": rule.action });
+      after = rebuildWithStarFirst(before, rule.tool, merged);
     } else {
       const edits = modify(before, ["permission", rule.tool, "*"], rule.action, { formattingOptions: FORMATTING });
       after = applyEdits(before, edits);
@@ -262,11 +284,14 @@ export function removePermissionRule(
 ): { changed: boolean; text: string } {
   if (!fs.existsSync(filePath)) return { changed: false, text: "" };
   const before = fs.readFileSync(filePath, "utf8");
-  const granular = GRANULAR_TOOLS.has(tool);
-  const p: JSONPath = granular ? ["permission", tool, pattern] : ["permission", tool];
+  // Decide granularity by the file's actual shape, not by tool name: a flat
+  // string entry is removed as a whole; a granular object removes one pattern
+  // and then collapses if empty.
+  const isGranularInFile = Boolean(existingGranular(before, tool));
+  const p: JSONPath = isGranularInFile ? ["permission", tool, pattern] : ["permission", tool];
   let after = applyEdits(before, modify(before, p, undefined, { formattingOptions: FORMATTING }));
 
-  if (granular) {
+  if (isGranularInFile) {
     const remaining = existingGranular(after, tool);
     if (remaining && Object.keys(remaining).length === 0) {
       after = applyEdits(after, modify(after, ["permission", tool], undefined, { formattingOptions: FORMATTING }));

@@ -19,6 +19,32 @@
   cursor: default;
 }
 
+/* Busy state for actions that fire an async server round-trip (e.g. "Reload
+   to apply"): show a spinner + dim the button so the user sees work in
+   progress rather than a dead button. */
+.btn-busy {
+  opacity: 0.8;
+  cursor: progress;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Inline spinning glyph — lightweight CSS-only loader, no asset needed. */
+.btn-spinner {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.85;
+  animation: btn-spinner-rot 0.7s linear infinite;
+}
+
+@keyframes btn-spinner-rot {
+  to { transform: rotate(360deg); }
+}
+
 .btn-xs {
   padding: 2px 8px;
   font-size: 11px;

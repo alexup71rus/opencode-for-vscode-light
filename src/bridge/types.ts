@@ -95,17 +95,15 @@ export interface ProjectConfig {
 }
 
 /**
- * Engine permission block (config.ts schema). Flat string per tool for most
- * tools; `bash` additionally allows a granular {pattern: action} object.
- * See permission/index.ts fromConfig and types.gen.d.ts PermissionConfig.
+ * Engine permission block. Verified against the live v1.17.13 engine: the
+ * evaluate() matcher accepts ANY tool name (it matches tool names via the same
+ * wildcard matcher it uses for patterns), and each tool value may be either a
+ * flat action string OR a granular {pattern: action} object — for every tool,
+ * not just bash. Configs in the wild use e.g. edit:{"*.md":"allow"} and
+ * grep:"allow". The SDK's static 5-key type is a subset; we model the full
+ * runtime shape.
  */
-export type PermissionConfig = {
-  edit?: PermissionAction;
-  bash?: PermissionAction | Record<string, PermissionAction>;
-  webfetch?: PermissionAction;
-  doom_loop?: PermissionAction;
-  external_directory?: PermissionAction;
-};
+export type PermissionConfig = Record<string, PermissionAction | Record<string, PermissionAction>>;
 export type PermissionAction = "allow" | "ask" | "deny";
 
 export interface AttachedContext {

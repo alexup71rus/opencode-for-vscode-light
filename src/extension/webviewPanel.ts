@@ -15,7 +15,7 @@ import type { StatsService } from "../services/statsService";
 import type { EventStream } from "../bridge/eventStream";
 import { ContextProvider } from "./contextProvider";
 import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
-import { isPermissionTool, pickWriteTarget, writePermissionRule, removePermissionRule, loadPermissionRules, configFilePath, globalConfigDir, type WriteScope } from "./permissionConfig";
+import { pickWriteTarget, writePermissionRule, removePermissionRule, loadPermissionRules, configFilePath, globalConfigDir, type WriteScope } from "./permissionConfig";
 
 import type {
   ExtensionToWebview,
@@ -566,21 +566,33 @@ export class WebviewPanelManager {
             });
             break;
           }
+          // Signal "reloading" so the UI can show a busy state on the button.
+          // postServerStatus("starting") flips the whole Connection tab too.
+          this.postServerStatus("starting");
+          // The button already reflects the in-progress state (label, pulse,
+          // tooltip), so don't spam a banner for the happy path — only surface
+          // a notice when the button itself can't tell the story (errors,
+          // external server, busy-guard). Clear any stale notice first.
+          this.postMessage({ type: "clearPermissionNotice" });
           // Restart the managed server (kill+respawn) so the instance re-reads
           // the config. reloadWindow would also work but tears down the whole
           // UI; a targeted server restart is lighter and keeps the panel open.
           const restarted = await this.restartManagedServer();
           if (!restarted) {
+            this.postServerStatus("ready");
             this.postMessage({
               type: "permissionNotice",
               kind: "externalChange",
               message: "Server restart was not performed — no changes applied.",
             });
           } else {
-            // Server came back fresh: re-broadcast rules and clear the notice.
+            // Server came back fresh: re-broadcast rules. No success banner —
+            // the button returning to "Reload to apply" is the confirmation.
             this.pushPermissionRules();
+            this.postServerStatus("ready");
           }
         } catch (err) {
+          this.postServerStatus("error", err instanceof Error ? err.message : String(err));
           this.reportError(err, "reload server");
         }
         break;
@@ -593,14 +605,9 @@ export class WebviewPanelManager {
 
   private persistAlwaysAllow(perm: Permission): void {
     const tool = perm.type;
-    // Tools outside the configurable schema (task/read/grep/...) are approved
-    // in-memory for the session but cannot be persisted to a config rule.
-    if (!isPermissionTool(tool)) {
-      void vscode.window.showInformationMessage(
-        `OCVS: "Always allow" for ${tool} applies to this session only — it can't be saved to the config file.`,
-      );
-      return;
-    }
+    // The engine accepts any tool name as a permission key (it matches via
+    // wildcard), so we persist whatever the prompt was for.
+    if (!tool || typeof tool !== "string") return;
     const patterns = (perm as Permission & { always?: string[] }).always;
     if (!patterns?.length) {
       // No specific patterns: the in-memory "always" covers the session; there
@@ -612,7 +619,7 @@ export class WebviewPanelManager {
       return;
     }
     const workspace = this.client.workdirPath;
-    const target = pickWriteTarget(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
+    const target = pickWriteTarget(workspace, os.homedir());
     for (const pattern of patterns) {
       try {
         this.markSelfWrite(target.path);
@@ -625,7 +632,7 @@ export class WebviewPanelManager {
 
   private pushPermissionRules(): void {
     const workspace = this.client.workdirPath;
-    const snapshot = loadPermissionRules(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
+    const snapshot = loadPermissionRules(workspace, os.homedir());
     this.postMessage({ type: "permissionRules", snapshot });
   }
 
@@ -1101,20 +1108,19 @@ function transformConfig(raw: Record<string, unknown>): ProjectConfig {
     const out: NonNullable<ProjectConfig["permission"]> = {};
     const isAction = (v: unknown): v is "allow" | "ask" | "deny" =>
       v === "allow" || v === "ask" || v === "deny";
-    const flatTools = ["edit", "webfetch", "doom_loop", "external_directory"] as const;
-    for (const t of flatTools) {
-      const v = src[t];
-      if (typeof v === "string" && isAction(v)) out[t] = v;
-    }
-    const bashV = src.bash;
-    if (typeof bashV === "string" && isAction(bashV)) {
-      out.bash = bashV;
-    } else if (bashV && typeof bashV === "object") {
-      const granular: Record<string, "allow" | "ask" | "deny"> = {};
-      for (const [pat, act] of Object.entries(bashV as Record<string, unknown>)) {
-        if (isAction(act)) granular[pat] = act;
+    // The engine accepts any tool name; each value is flat OR granular. Keep
+    // valid entries, drop junk so the webview never renders a shape the engine
+    // would ignore.
+    for (const [tool, v] of Object.entries(src)) {
+      if (typeof v === "string" && isAction(v)) {
+        out[tool] = v;
+      } else if (v && typeof v === "object") {
+        const granular: Record<string, "allow" | "ask" | "deny"> = {};
+        for (const [pat, act] of Object.entries(v as Record<string, unknown>)) {
+          if (isAction(act)) granular[pat] = act;
+        }
+        if (Object.keys(granular).length) out[tool] = granular;
       }
-      if (Object.keys(granular).length) out.bash = granular;
     }
     config.permission = out;
   }

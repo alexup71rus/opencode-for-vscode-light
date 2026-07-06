@@ -316,7 +316,9 @@ export interface Permission {
   time: { created: number };
 }
 
-export type PermissionTool = "edit" | "bash" | "webfetch" | "doom_loop" | "external_directory";
+// The engine accepts any tool name as a permission key (wildcard-matched), so
+// this is a free string. The common 5 are offered as picker suggestions.
+export type PermissionTool = string;
 export type PermissionAction = "allow" | "ask" | "deny";
 
 export interface PermissionRule {
@@ -327,16 +329,11 @@ export interface PermissionRule {
 }
 
 /**
- * Engine permission block (config.ts schema). Flat string per tool; `bash`
- * additionally allows a granular {pattern: action} object.
+ * Engine permission block. Verified against the live v1.17.13 engine: any tool
+ * name is accepted, and each value may be a flat action OR a granular
+ * {pattern: action} object — for every tool, not just bash.
  */
-export type PermissionConfig = {
-  edit?: PermissionAction;
-  bash?: PermissionAction | Record<string, PermissionAction>;
-  webfetch?: PermissionAction;
-  doom_loop?: PermissionAction;
-  external_directory?: PermissionAction;
-};
+export type PermissionConfig = Record<string, PermissionAction | Record<string, PermissionAction>>;
 
 export interface PermissionRulesSnapshot {
   rules: PermissionRule[];
@@ -455,6 +452,7 @@ export type ExtensionToWebview =
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "filesExist"; results: Record<string, boolean> }
   | { type: "permissionNotice"; kind: "externalChange"; message: string }
+  | { type: "clearPermissionNotice" }
   | { type: "error"; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 

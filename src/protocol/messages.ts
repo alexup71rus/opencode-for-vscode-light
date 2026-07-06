@@ -22,7 +22,10 @@ import type {
 
 export type FileSearchSource = "mention" | "attach";
 
-export type PermissionTool = "edit" | "bash" | "webfetch" | "doom_loop" | "external_directory";
+// The engine matches tool names via wildcard, so any string is accepted as a
+// permission key — not just the SDK's static 5. We type it as string and offer
+// the common ones as picker suggestions in the UI.
+export type PermissionTool = string;
 export type PermissionAction = "allow" | "ask" | "deny";
 
 export interface PermissionRule {
@@ -70,6 +73,7 @@ export type ExtensionToWebview =
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "filesExist"; results: Record<string, boolean> }
   | { type: "permissionNotice"; kind: "externalChange"; message: string }
+  | { type: "clearPermissionNotice" }
   | { type: "error"; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 

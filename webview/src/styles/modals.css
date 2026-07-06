@@ -469,17 +469,132 @@
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
 }
 
-.perm-add-row {
+/* ── Add-rule block ── */
+/* Tool + Action side by side, Pattern full-width below. Each field is a
+   <label> so the input and its caption share a column. */
+.perm-add-top {
   display: flex;
-  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
   margin-top: 6px;
 }
 
-.perm-pattern-input {
-  flex: 1 1 160px;
-  min-width: 120px;
+.perm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.perm-field-tool {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.perm-field-action {
+  flex: 0 0 120px;
+}
+
+.perm-field-pattern {
+  margin-top: 8px;
+}
+
+.perm-field-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+.perm-field-optional {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.5;
+}
+
+/* Dedicated control styling — do NOT reuse .settings-tool-filter, whose
+   width:100% collides with the flex layout and shoves the row around. */
+.perm-tool-select,
+.perm-action-select,
+.perm-pattern-input,
+.perm-tool-custom {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.perm-tool-select,
+.perm-action-select {
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+  border-color: var(--vscode-dropdown-border, var(--vscode-input-border, var(--vscode-panel-border, transparent)));
+  cursor: pointer;
+}
+
+.perm-tool-select:focus,
+.perm-action-select:focus,
+.perm-pattern-input:focus,
+.perm-tool-custom:focus {
+  border-color: var(--vscode-focusBorder, var(--vscode-input-border, transparent));
+}
+
+.perm-tool-custom {
+  margin-top: 8px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.perm-preview-action {
+  font-weight: 600;
+}
+
+.perm-preview-allow {
+  color: var(--vscode-testing-iconPassed, #3fb950);
+}
+
+.perm-preview-deny {
+  color: var(--vscode-testing-iconFailed, #f85149);
+}
+
+.perm-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.perm-preset {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.4));
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.perm-preset:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.perm-preset.active {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+  border-color: transparent;
+}
+
+.perm-add-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 .perm-path {

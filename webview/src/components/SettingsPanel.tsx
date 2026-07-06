@@ -6,6 +6,47 @@ import type { ModelSelection, PermissionAction, PermissionTool } from "../api/ty
 
 type Tab = "general" | "models" | "tools" | "permissions" | "connection";
 
+// Shorten an absolute config path to "<parent-folder>/<file>" so the UI shows
+// e.g. "opencode-vscode-client/opencode.json" instead of a full path that
+// wraps and breaks the layout. The full path stays available as a tooltip.
+function shortPath(full: string): string {
+  if (!full) return "—";
+  const parts = full.replace(/\\/g, "/").split("/").filter(Boolean);
+  if (parts.length <= 2) return full;
+  return parts.slice(-2).join("/");
+}
+
+// Module-level constants (don't re-create per render).
+// The engine matches any tool name; these are just curated suggestions for the
+// dropdown. "Custom…" lets the user type an arbitrary name for anything else.
+const PERMISSION_TOOL_OPTIONS: PermissionTool[] = [
+  "bash",
+  "edit",
+  "write",
+  "read",
+  "webfetch",
+  "task",
+  "grep",
+  "glob",
+  "ls",
+  "doom_loop",
+  "external_directory",
+];
+// Common safe dev commands a user might want to allow without a prompt.
+// Deliberately excludes anything destructive or outward-facing (rm -rf, git
+// push, npm publish, git push --force, …) — those should stay on `ask`.
+const BASH_PRESETS = [
+  "git commit *",
+  "git status",
+  "git diff *",
+  "git log *",
+  "npm test *",
+  "npm run *",
+  "make *",
+  "ls",
+  "cat",
+];
+
 export function SettingsPanel(): React.ReactElement | null {
   const open = useStore((s) => s.settingsOpen);
   const setOpen = useStore((s) => s.setSettingsOpen);
@@ -41,6 +82,9 @@ export function SettingsPanel(): React.ReactElement | null {
   const anyBusy = useStore((s) =>
     Object.values(s.sessionStatus).some((st) => st.type === "busy" || st.type === "retry"),
   );
+  // True while the server is restarting after "Reload to apply" — drives the
+  // button's busy label/state so the click visibly does something.
+  const reloading = useStore((s) => s.permissionReloading);
 
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>(settings.enabledTools);
@@ -56,6 +100,9 @@ export function SettingsPanel(): React.ReactElement | null {
   const [draftSendOnEnter, setDraftSendOnEnter] = useState(settings.sendOnEnter);
   const [tab, setTab] = useState<Tab>("general");
   const [newTool, setNewTool] = useState<PermissionTool>("bash");
+  // Separate "custom mode" flag so typing a name that happens to match a preset
+  // (e.g. "grep") doesn't snap the select back and hide the custom text field.
+  const [toolCustom, setToolCustom] = useState(false);
   const [newPattern, setNewPattern] = useState("*");
   const [newAction, setNewAction] = useState<PermissionAction>("ask");
 
@@ -79,10 +126,6 @@ export function SettingsPanel(): React.ReactElement | null {
   useEffect(() => {
     if (open && tab === "permissions") requestPermissionRules();
   }, [open, tab, requestPermissionRules]);
-
-  useEffect(() => {
-    if (newTool !== "bash") setNewPattern("*");
-  }, [newTool]);
 
   useEffect(() => {
     if (!permissionNotice) return;
@@ -198,7 +241,6 @@ export function SettingsPanel(): React.ReactElement | null {
     0,
   );
 
-  const PERMISSION_TOOLS: PermissionTool[] = ["edit", "bash", "webfetch", "doom_loop", "external_directory"];
   const permRules = permissionRules?.rules ?? [];
   const permWritePath = permissionRules
     ? permissionRules.writeTarget === "project"
@@ -209,13 +251,22 @@ export function SettingsPanel(): React.ReactElement | null {
   const addRule = () => {
     if (!permissionRules) return;
     const source = permissionRules.writeTarget;
-    const pattern = newTool === "bash" ? (newPattern.trim() || "*") : "*";
+    const tool = newTool.trim();
+    if (!tool) return;
+    // Any tool accepts a pattern (engine matches via wildcard). Empty pattern
+    // defaults to "*" (whole tool).
+    const pattern = newPattern.trim() || "*";
+    // Confirm ONLY when about to CREATE a project config that doesn't exist yet.
+    // Writing to an existing project file, or to global when the workspace IS
+    // home, happens silently.
     if (source === "project" && !permissionRules.projectFileExists) {
       if (!window.confirm(`Create ${permissionRules.projectPath} in the project?`)) return;
-    } else if (source === "global") {
-      if (!window.confirm(`Write to ${permissionRules.globalPath}?\nThis affects all projects on this machine.`)) return;
     }
-    savePermissionRule({ tool: newTool, pattern, action: newAction, source });
+    savePermissionRule({ tool, pattern, action: newAction, source });
+    // Reset the pattern field and custom flag (keep tool/action for fast repeats).
+    setNewPattern("");
+    setToolCustom(false);
+    setNewTool("bash");
   };
 
   const TABS: { id: Tab; label: string }[] = [
@@ -553,12 +604,14 @@ export function SettingsPanel(): React.ReactElement | null {
               <div className="settings-label-row">
                 <div className="settings-section-title">Permission rules</div>
                 <button
-                  className="btn btn-sm"
-                  disabled={!isManaged}
+                  className={`btn btn-sm${reloading ? " btn-busy" : ""}`}
+                  disabled={!isManaged || reloading}
                   title={
-                    isManaged
-                      ? "Restart the server so it re-reads opencode.json"
-                      : "Connected to an external server — restart it manually to apply changes"
+                    !isManaged
+                      ? "Connected to an external server — restart it manually to apply changes"
+                      : reloading
+                        ? "Restarting server to apply permission changes…"
+                        : "Restart the server so it re-reads opencode.json"
                   }
                   onClick={() => {
                     if (anyBusy) {
@@ -570,13 +623,23 @@ export function SettingsPanel(): React.ReactElement | null {
                     reloadServer(anyBusy);
                   }}
                 >
-                  Reload to apply
+                  {reloading ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden />
+                      Restarting…
+                    </>
+                  ) : (
+                    "Reload to apply"
+                  )}
                 </button>
               </div>
               <span className="settings-hint">
                 Rules the engine consults when a tool runs. <code>ask</code> prompts you,{" "}
                 <code>allow</code> skips the prompt, <code>deny</code> blocks. New rules save to{" "}
-                <code className="perm-path">{permWritePath || "—"}</code>.
+                <code className="perm-path" title={permWritePath || undefined}>
+                  {shortPath(permWritePath)}
+                </code>
+                {permissionRules?.writeTarget === "global" && " (global — affects all projects)"}.
               </span>
 
               <div className="settings-field">
@@ -639,44 +702,109 @@ export function SettingsPanel(): React.ReactElement | null {
                 <div className="settings-label-row">
                   <label className="settings-label">Add rule</label>
                 </div>
-                <div className="perm-add-row">
-                  <select
-                    className="settings-select"
-                    value={newTool}
-                    onChange={(e) => setNewTool(e.target.value as PermissionTool)}
-                  >
-                    {PERMISSION_TOOLS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                <div className="perm-add-top">
+                  <label className="perm-field perm-field-tool">
+                    <span className="perm-field-label">Tool</span>
+                    <select
+                      className="perm-tool-select"
+                      aria-label="Tool"
+                      value={toolCustom ? "__custom__" : newTool}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "__custom__") {
+                          setToolCustom(true);
+                          setNewTool("");
+                        } else {
+                          setToolCustom(false);
+                          setNewTool(v as PermissionTool);
+                        }
+                      }}
+                    >
+                      {PERMISSION_TOOL_OPTIONS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                      <option value="__custom__">Custom…</option>
+                    </select>
+                  </label>
+                  <label className="perm-field perm-field-action">
+                    <span className="perm-field-label">Action</span>
+                    <select
+                      className="perm-action-select"
+                      aria-label="Action"
+                      value={newAction}
+                      onChange={(e) => setNewAction(e.target.value as PermissionAction)}
+                    >
+                      <option value="ask">ask</option>
+                      <option value="allow">allow</option>
+                      <option value="deny">deny</option>
+                    </select>
+                  </label>
+                </div>
+                {toolCustom && (
                   <input
-                    className="settings-tool-filter perm-pattern-input"
+                    className="perm-tool-custom"
                     type="text"
-                    placeholder={newTool === "bash" ? "e.g. docker *" : "(whole tool)"}
-                    value={newPattern}
-                    disabled={newTool !== "bash"}
-                    onChange={(e) => setNewPattern(e.target.value)}
+                    placeholder="custom tool name (e.g. mcp__github__create_issue)"
+                    value={newTool}
+                    onChange={(e) => setNewTool(e.target.value)}
+                    aria-label="Custom tool name"
                   />
-                  <select
-                    className="settings-select"
-                    value={newAction}
-                    onChange={(e) => setNewAction(e.target.value as PermissionAction)}
+                )}
+                <label className="perm-field perm-field-pattern">
+                  <span className="perm-field-label">
+                    Pattern <span className="perm-field-optional">(wildcard; empty = whole tool)</span>
+                  </span>
+                  <input
+                    className="perm-pattern-input"
+                    type="text"
+                    placeholder='e.g. "docker *", "*.md", or leave empty for the whole tool'
+                    value={newPattern}
+                    onChange={(e) => setNewPattern(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addRule();
+                      }
+                    }}
+                    aria-label="Pattern (wildcard)"
+                  />
+                </label>
+                {newTool === "bash" && (
+                  <div className="perm-presets" role="group" aria-label="Pattern presets">
+                    {BASH_PRESETS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={`perm-preset${newPattern === p ? " active" : ""}`}
+                        onClick={() => setNewPattern(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="perm-add-footer">
+                  <span className="settings-hint perm-preview">
+                    {newTool.trim() ? (
+                      <>
+                        Preview:{" "}
+                        <code>{newTool.trim()}</code> {" → "} <code>{newPattern.trim() || "*"}</code> {" → "}
+                        <span className={`perm-preview-action perm-preview-${newAction}`}>{newAction}</span>
+                      </>
+                    ) : (
+                      <>Enter a tool name to add a rule.</>
+                    )}
+                  </span>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={addRule}
+                    disabled={!newTool.trim()}
                   >
-                    <option value="ask">ask</option>
-                    <option value="allow">allow</option>
-                    <option value="deny">deny</option>
-                  </select>
-                  <button className="btn btn-primary btn-sm" onClick={addRule}>
                     Add
                   </button>
                 </div>
-                <span className="settings-hint">
-                  {newTool === "bash"
-                    ? "Engine wildcards: “docker *” matches “docker …” and bare “docker”; “*” alone = whole tool."
-                    : "Only bash supports command patterns; other tools are set as a whole."}
-                </span>
               </div>
             </section>
           )}

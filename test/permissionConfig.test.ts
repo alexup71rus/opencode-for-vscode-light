@@ -99,16 +99,33 @@ test("parsePermissionBlock: granular only for bash", () => {
   );
 });
 
-test("parsePermissionBlock: granular form on non-bash tool is ignored (schema-invalid)", () => {
-  const r = parsePermissionBlock({ edit: { "*": "ask" } }, "project");
-  assert.equal(r.length, 0);
+test("parsePermissionBlock: granular form honoured for ANY tool (engine matches tool via wildcard)", () => {
+  // The live engine accepts edit:{"*.md":"allow"} — verified via GET /config on
+  // v1.17.13. This used to be wrongly rejected as "schema-invalid".
+  const r = parsePermissionBlock({ edit: { "*": "ask", "*.md": "allow" } }, "project");
+  assert.deepEqual(
+    r.map((x) => [x.tool, x.pattern, x.action]),
+    [
+      ["edit", "*", "ask"],
+      ["edit", "*.md", "allow"],
+    ],
+  );
 });
 
-test("parsePermissionBlock: unknown keys + invalid actions ignored", () => {
-  const r = parsePermissionBlock({ task: "ask", grep: "deny", bash: "maybe", doom_loop: "allow" }, "global");
+test("parsePermissionBlock: any tool name accepted (grep/task/read)", () => {
+  // Engine evaluate() wildcard-matches tool names, so non-SDK keys are live.
+  const r = parsePermissionBlock(
+    { task: "ask", grep: "deny", bash: "maybe", doom_loop: "allow", read: { "*.ts": "allow" } },
+    "global",
+  );
   assert.deepEqual(
-    r.map((x) => [x.tool, x.action]),
-    [["doom_loop", "allow"]],
+    r.map((x) => [x.tool, x.pattern, x.action]),
+    [
+      ["task", "*", "ask"],
+      ["grep", "*", "deny"],
+      ["doom_loop", "*", "allow"],
+      ["read", "*.ts", "allow"],
+    ],
   );
 });
 
@@ -129,19 +146,14 @@ test("resolvePermission: no match -> default ask", () => {
 
 // ── pickWriteTarget ──
 
-test("pickWriteTarget: project when workspace!=home and has git root", () => {
-  const t = pickWriteTarget("/repo", "/home/me", true);
+test("pickWriteTarget: project when workspace!=home", () => {
+  const t = pickWriteTarget("/repo", "/home/me");
   assert.equal(t.scope, "project");
   assert.match(t.path, /\/repo\/opencode\.json$/);
 });
 
 test("pickWriteTarget: global when workspace is home", () => {
-  const t = pickWriteTarget("/home/me", "/home/me", true);
-  assert.equal(t.scope, "global");
-});
-
-test("pickWriteTarget: global when no git root", () => {
-  const t = pickWriteTarget("/repo", "/home/me", false);
+  const t = pickWriteTarget("/home/me", "/home/me");
   assert.equal(t.scope, "global");
 });
 
@@ -169,11 +181,30 @@ test("writePermissionRule: granular for bash", () => {
   assert.deepEqual(data.permission, { bash: { "docker *": "ask" } });
 });
 
-test("writePermissionRule: non-bash pattern collapses to '*'", () => {
+test("writePermissionRule: specific pattern on non-bash tool stays granular", () => {
+  // The engine accepts granular objects for any tool, so a specific pattern is
+  // preserved (not collapsed to "*"). Flat string is used only when the pattern
+  // IS "*" and no other specifics exist for that tool.
   const f = tmpFile("opencode.json", "{}");
   writePermissionRule(f, { tool: "webfetch", pattern: "https://x", action: "allow", source: "global" });
   const data = JSON.parse(fs.readFileSync(f, "utf8"));
+  assert.deepEqual(data.permission, { webfetch: { "https://x": "allow" } });
+});
+
+test("writePermissionRule: '*' on non-bash tool without other specifics -> flat string", () => {
+  const f = tmpFile("opencode.json", "{}");
+  writePermissionRule(f, { tool: "webfetch", pattern: "*", action: "allow", source: "global" });
+  const data = JSON.parse(fs.readFileSync(f, "utf8"));
   assert.deepEqual(data.permission, { webfetch: "allow" });
+});
+
+test("writePermissionRule: '*' on non-bash tool WITH specifics -> granular, * first", () => {
+  const f = tmpFile("opencode.json", JSON.stringify({ permission: { edit: { "*.md": "allow" } } }));
+  writePermissionRule(f, { tool: "edit", pattern: "*", action: "ask", source: "global" });
+  const text = fs.readFileSync(f, "utf8");
+  const starPos = text.indexOf('"*"');
+  const mdPos = text.indexOf('"*.md"');
+  assert.ok(starPos > -1 && mdPos > -1 && starPos < mdPos, "'*' must precede specifics");
 });
 
 test("writePermissionRule: '*' sorts first within bash (specifics stay live)", () => {

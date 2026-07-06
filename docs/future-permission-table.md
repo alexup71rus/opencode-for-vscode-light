@@ -36,6 +36,17 @@ array, no file/DB write).
 
 ## Resolved findings (engine v1.17.13 source + SDK types)
 
+> ⚠️ **Correction (post-implementation, verified live):** Finding #5 below originally
+> claimed the `permission` schema is exactly 5 keys with granular `{pattern:action}`
+> valid ONLY for `bash`. **This is wrong.** The SDK's static type
+> (`types.gen.d.ts:1161-1169`) lists 5 keys, but the live v1.17.13 engine's
+> `evaluate()` matches the **tool name with the same wildcard matcher it uses for
+> patterns** (`M.flat().findLast((z) => match(input, z.permission) && match(p, z.pattern))`),
+> so ANY string is a valid permission key, and each value may be flat OR granular
+> `{pattern:action}` for **every** tool. Verified empirically: `GET /config` returns
+> `edit: {"*.md":"allow"}` and `grep: "allow"` unchanged, and both resolve live.
+> The implementation now models this full runtime shape (not the SDK subset).
+
 1. **`response:"always"` is in-memory only (v1).** `permission/index.ts:109-167` (`Service.reply`):
    `once`→nothing; `always`→pushes into in-memory `approved` (line 145-151) then auto-approves
    matching pending in the session; `reject`→fails deferred + **cascades reject to all other
@@ -53,17 +64,12 @@ array, no file/DB write).
    `Config.update`/`updateGlobal`, but the instance ruleset is computed once at
    `loadInstanceState` (`config.ts:313`) and cached (`config.ts:599`); `invalidate()` only
    clears the global cache, not the instance. → Write files directly; apply via restart.
-5. **Permission schema = exactly 5 keys, granular `{pattern:action}` valid ONLY for `bash`**
-   (`node_modules/@opencode-ai/sdk/dist/gen/types.gen.d.ts:1161-1169`):
-   `edit | bash | webfetch | doom_loop | external_directory`. `edit`/`webfetch`/`doom_loop`/
-   `external_directory` are **flat string only**; `bash` may be flat or `{"<pattern>": action}`.
-   Actions: `"allow"|"ask"|"deny"`. `fromConfig` (`permission/index.ts:186-198`) iterates
-   entries → flat becomes `{pattern:"*"}`; granular → one rule per pattern.
-   - **Other tools (task/websearch/grep/read/skill/lsp) DO declare permission names**
-     (`tool/task.ts:106`, `tool/websearch.ts:120`, `tool/grep.ts:40`, `tool/read.ts:256`,
-     `tool/skill.ts:28`, `tool/lsp.ts:57`) but are NOT configurable via the `permission`
-     block — only via `tools: {<name>: bool}` (`types.gen.d.ts:1170`) which derives allow/deny
-     (no "ask"). Out of scope for the table.
+5. **~~Permission schema = exactly 5 keys, granular `{pattern:action}` valid ONLY for `bash`~~**
+   *(SUPERSEDED — see the correction notice at the top of this section.)* The SDK's static
+   type lists `edit | bash | webfetch | doom_loop | external_directory`, but the **live engine
+   accepts any tool name and granular objects for all of them**. The implementation correctly
+   models `Record<string, action | Record<string,action>>`. The 5 SDK keys are still offered
+   as UI picker suggestions (most common), but the field is free-text.
    - **Piece 1 baseline follow-up:** our `OPENCODE_CONFIG` baseline sets `task`/`websearch: "ask"`
      — these keys are NOT in the schema (likely stripped/dead). Trim baseline to
      `{bash, edit, webfetch: "ask"}`. Separate quickfix, not part of P2.
@@ -220,9 +226,12 @@ re-broadcast, toast "Config changed externally — reload to apply".
 
 ## Out of scope
 - v2 migration / `permission.saved.*` API (decision — no session continuity).
-- Configuring non-schema tools (task/grep/read/skill/lsp/websearch) — engine only allows
-  allow/deny via `tools` map, no "ask"; not in this table.
 - Per-agent permission overrides; MDM layers; `PATCH /config`.
+
+> Note: "Configuring non-schema tools (task/grep/read/...)" was originally listed here as
+> out of scope, but that restriction was based on the incorrect finding #5 (see correction
+> notice above). The live engine DOES accept those tool names in the `permission` block, so
+> the table now supports them as free-text entries.
 
 ---
 
