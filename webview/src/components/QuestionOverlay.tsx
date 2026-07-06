@@ -73,10 +73,22 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
           const current = Math.min(pos[req.id] ?? 0, total - 1);
           const setIdx = (next: number) =>
             setPos((p) => ({ ...p, [req.id]: Math.max(0, Math.min(total - 1, next)) }));
-          const q = req.questions[current];
-          const k = key(req.id, current);
-          const sel = selection[k] ?? [];
-          return (
+            const q = req.questions[current];
+            const k = key(req.id, current);
+            const sel = selection[k] ?? [];
+            const isLast = current === total - 1;
+            const currentAnswered = isAnswered(req, current);
+            // Primary action is context-aware: advance to the next question
+            // until the last one, where it submits the whole batch. Wired to
+            // the bottom button and to Cmd/Ctrl+Enter in the textarea.
+            const onPrimary = () => {
+              if (isLast) {
+                if (allAnswered) submit(req);
+              } else if (currentAnswered) {
+                setIdx(current + 1);
+              }
+            };
+            return (
             <div className="question-request" key={req.id}>
               <div className="question-request-head">
                 <span className="question-request-icon" aria-hidden="true">?</span>
@@ -110,21 +122,37 @@ export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.Reac
                 }}
                 onCustom={(v) => setCustom((c) => ({ ...c, [k]: v }))}
                 onNavKey={(dir) => setIdx(current + dir)}
-                onSubmit={() => submit(req)}
+                onSubmit={onPrimary}
               />
 
               <div className="question-actions">
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => submit(req)}
-                  disabled={!allAnswered}
-                  title={allAnswered ? "Send answer" : "Answer every question (or dismiss)"}
-                >
-                  Answer
-                </button>
                 <button className="btn btn-sm" onClick={() => dismiss(req)} title="Reject — let the agent proceed without an answer">
                   Dismiss
                 </button>
+                {current > 0 && (
+                  <button className="btn btn-sm" onClick={() => setIdx(current - 1)} title="Back to previous question">
+                    Back
+                  </button>
+                )}
+                {isLast ? (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => submit(req)}
+                    disabled={!allAnswered}
+                    title={allAnswered ? "Send answers" : "Answer every question first"}
+                  >
+                    Submit
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setIdx(current + 1)}
+                    disabled={!currentAnswered}
+                    title={currentAnswered ? "Next question" : "Answer this question to continue"}
+                  >
+                    Next
+                  </button>
+                )}
               </div>
             </div>
           );
