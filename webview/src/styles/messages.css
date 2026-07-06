@@ -624,27 +624,26 @@
   padding: 4px 0;
 }
 
-/* Collapsed preview: clamp to ~3 lines and fade the bottom edge so it's clear
-   the reasoning is truncated, not finished. Click the header to fully expand. */
+/* Collapsed preview shows the LAST ~3 lines (JS-truncated). The fade sits at
+   the TOP edge to signal that older thoughts above are hidden, and the whole
+   block is dimmed so it reads as collapsed rather than finished. */
 .reasoning-collapsed {
-  max-height: 4.2em;            /* ~3 lines at 12px / 1.4 */
-  overflow: hidden;
   position: relative;
   cursor: default;
   opacity: 0.5;
 }
 
-.reasoning-collapsed::after {
+.reasoning-collapsed::before {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  top: 0;
   height: 1.4em;
   background: linear-gradient(
     to bottom,
-    transparent,
-    var(--vscode-editor-background, #1e1e1e)
+    var(--vscode-editor-background, #1e1e1e),
+    transparent
   );
   pointer-events: none;
 }
