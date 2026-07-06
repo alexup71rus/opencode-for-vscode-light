@@ -7,6 +7,7 @@ import { ChatView } from "./components/ChatView";
 import { ChatInput } from "./components/ChatInput";
 import { QueueBar } from "./components/QueueBar";
 import { QuestionOverlay } from "./components/QuestionOverlay";
+import { PermissionOverlay } from "./components/PermissionOverlay";
 import { playCompleteSound, playAttentionSound } from "./utils/sound";
 import { InspectPanel } from "./components/InspectPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -411,6 +412,7 @@ export default function App(): React.ReactElement {
                 </>
               )}
               <QuestionOverlay sessionId={activeSessionId} />
+              <PermissionOverlay sessionId={activeSessionId} />
             </>
           ) : (
             <div className="chat-empty">

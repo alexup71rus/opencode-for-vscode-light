@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { formatDuration } from "../utils";
@@ -249,16 +249,6 @@ export function ToolCallView({ sessionId, part, childSessionId }: ToolCallViewPr
     if (autoExpandError && status === "error") setExpanded(true);
   }, [autoExpandError, status]);
 
-  const permission = useStore((s) =>
-    s.pendingPermissions.find((p) => p.callID && p.callID === part.callID),
-  );
-  const permRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!permission) return;
-    permRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [permission]);
-
   const title =
     status === "completed"
       ? state.title
@@ -272,11 +262,6 @@ export function ToolCallView({ sessionId, part, childSessionId }: ToolCallViewPr
       : status === "running"
         ? Date.now() - state.time.start
         : 0;
-
-  const reply = (decision: "once" | "always" | "reject") => {
-    if (!permission) return;
-    postMessage({ type: "replyPermission", sessionId, permissionId: permission.id, decision });
-  };
 
   const inputView =
     t === "question"
@@ -346,29 +331,6 @@ export function ToolCallView({ sessionId, part, childSessionId }: ToolCallViewPr
           {hasDetail && <span className="tool-caret">{expanded ? "▾" : "▸"}</span>}
         </span>
       </div>
-
-      {permission && (
-        <div className="tool-permission tool-permission-prominent" ref={permRef}>
-          <div className="tool-permission-head">
-            <span className="tool-permission-icon" aria-hidden="true">⚠</span>
-            <div className="tool-permission-head-text">
-              <div className="tool-permission-eyebrow">Approval required</div>
-              <div className="tool-permission-title">{permission.title}</div>
-            </div>
-          </div>
-          <div className="tool-permission-actions">
-            <button className="btn btn-primary btn-xs" onClick={() => reply("once")}>
-              Allow once
-            </button>
-            <button className="btn btn-xs" onClick={() => reply("always")}>
-              Always allow
-            </button>
-            <button className="btn btn-danger btn-xs" onClick={() => reply("reject")}>
-              Reject
-            </button>
-          </div>
-        </div>
-      )}
 
       {expanded && hasDetail && (
         <div className="tool-call-detail">

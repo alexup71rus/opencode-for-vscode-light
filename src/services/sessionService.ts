@@ -548,7 +548,7 @@ export class SessionService extends EventEmitter {
     const tool = raw.permission ?? "tool";
     const detail =
       (raw.metadata?.command as string | undefined) ?? raw.patterns?.[0];
-    const permission: Permission = {
+    const permission: Permission & { always?: string[] } = {
       id: raw.id,
       type: tool,
       pattern: raw.patterns,
@@ -557,6 +557,7 @@ export class SessionService extends EventEmitter {
       callID: raw.tool?.callID,
       title: detail ? `${tool}: ${detail}` : tool,
       metadata: raw.metadata ?? {},
+      always: raw.always,
       time: { created: Date.now() },
     };
     let list = this.permissionsBySession.get(sessionId);

@@ -311,6 +311,8 @@ export interface Permission {
   callID?: string;
   title: string;
   metadata: { [key: string]: unknown };
+  /** Suggested patterns that "Always allow" would permit (from the server). */
+  always?: string[];
   time: { created: number };
 }
 
