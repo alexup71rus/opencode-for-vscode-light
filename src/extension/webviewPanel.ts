@@ -429,6 +429,17 @@ export class WebviewPanelManager {
         }
         break;
       }
+      case "getSkills": {
+        // Pull-path for skills. Skills are normally pushed via loadConfig →
+        // loadSkills, but if the push was missed or lost (e.g. the webview
+        // mounted before loadSkills finished), the webview can re-request them.
+        try {
+          await this.loadSkills();
+        } catch (err) {
+          this.reportError(err, "list skills");
+        }
+        break;
+      }
       case "executeCommand": {
         try {
           await this.client.executeSessionCommand(msg.sessionId, msg.command, msg.args);
@@ -842,7 +853,6 @@ export class WebviewPanelManager {
       this.postMessage({
         type: "agents",
         agents: this.agentService.getAgents(),
-        tools: this.agentService.getTools(),
       });
     });
 
@@ -952,7 +962,6 @@ export class WebviewPanelManager {
     this.postMessage({
       type: "agents",
       agents: this.agentService.getAgents(),
-      tools: this.agentService.getTools(),
     });
     this.postMessage({
       type: "stats",

@@ -13,7 +13,6 @@ import type { ServerInfo } from "./serverManager";
 import type {
   AgentInfo,
   SendMessageOptions,
-  ToolInfo,
   SkillInfo,
   Todo,
   McpServerStatus,
@@ -117,13 +116,6 @@ export class OpenCodeClient {
     }));
   }
 
-  async listToolIds(): Promise<ToolInfo[]> {
-    const res = await this.sdk.tool.ids();
-    if (res.error) throw toError(res.error);
-    const ids = (res.data ?? []) as string[];
-    return ids.map((id) => ({ id }));
-  }
-
   async getMessages(
     sessionId: string,
   ): Promise<Array<{ info: Message; parts: Part[] }>> {
@@ -157,7 +149,6 @@ export class OpenCodeClient {
     if (options?.model) body.model = options.model;
     if (options?.agent) body.agent = options.agent;
     if (options?.system) body.system = options.system;
-    if (options?.tools && Object.keys(options.tools).length > 0) body.tools = options.tools;
     const res = await this.sdk.session.promptAsync({
       path: { id: sessionId },
       body: body as never,

@@ -145,16 +145,10 @@ export interface CommandInfo {
   agent?: string;
 }
 
-export interface ToolInfo {
-  id: string;
-  description?: string;
-}
-
 export interface SendMessageOptions {
   model?: ModelSelection;
   agent?: string;
   system?: string;
-  tools?: { [key: string]: boolean };
 }
 
 export interface MessageAttachment {

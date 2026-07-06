@@ -248,14 +248,53 @@
   padding: 6px 12px;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
   transition: background var(--opencode-ease);
 }
 
 .slash-item:hover,
 .slash-item.selected {
   background: var(--vscode-list-hoverBackground);
+}
+
+/* Pin star toggle on the left of each row. */
+.slash-pin {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground, currentColor);
+  opacity: 0.45;
+  transition: opacity var(--opencode-ease), color var(--opencode-ease);
+}
+.slash-pin:hover {
+  opacity: 1;
+}
+.slash-pin.slash-pin-on {
+  opacity: 1;
+  color: var(--vscode-charts-yellow, #e2c046);
+}
+
+/* Spacer matching the pin star's footprint, so skill rows in the / drop-down
+   line up with command rows (skills are pinnable from the $ drop-down only). */
+.slash-pin-slot {
+  flex: 0 0 auto;
+  width: 13px;
+  margin-top: 1px;
+}
+
+/* Name (+description) block sitting to the right of the pin star. */
+.slash-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .slash-item-name {
@@ -279,6 +318,25 @@
   color: var(--vscode-textLink-foreground, var(--vscode-foreground));
   font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
   font-weight: 500;
+}
+
+/* Section divider between commands and skills in the / drop-down. */
+.slash-sep {
+  padding: 5px 12px 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-descriptionForeground, currentColor);
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Skills use the `$` prefix and a distinct accent color so they read as a
+   different kind of entry than plain `/` commands. */
+.slash-item-skill .slash-item-name {
+  color: var(--vscode-charts-purple, #b079e0);
 }
 
 /* ===== Header title / status (rework) ===== */

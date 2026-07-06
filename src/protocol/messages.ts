@@ -9,7 +9,6 @@ import type {
   AttachedContext,
   SessionStatusInfo,
   AgentInfo,
-  ToolInfo,
   CommandInfo,
   SendMessageOptions,
   MessageAttachment,
@@ -59,7 +58,7 @@ export type ExtensionToWebview =
   | { type: "questionRemoved"; sessionId: string; requestId: string }
   | { type: "sessionStatus"; sessionId: string; status: SessionStatusInfo }
   | { type: "models"; providers: ProviderInfo[]; defaultModel: ModelSelection | null }
-  | { type: "agents"; agents: AgentInfo[]; tools: ToolInfo[] }
+  | { type: "agents"; agents: AgentInfo[] }
   | { type: "commands"; commands: CommandInfo[] }
   | { type: "fileResults"; files: string[]; source: FileSearchSource; query: string }
   | { type: "config"; config: ProjectConfig }
@@ -98,6 +97,7 @@ export type WebviewToExtension =
   | { type: "refreshSessions" }
   | { type: "refreshModels" }
   | { type: "getCommands" }
+  | { type: "getSkills" }
   | { type: "executeCommand"; sessionId: string; command: string; args: string }
   | { type: "compactSession"; sessionId: string; model: ModelSelection }
   | { type: "findFiles"; query: string; source: FileSearchSource }

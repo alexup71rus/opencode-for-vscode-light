@@ -4,7 +4,7 @@ import { postMessage } from "../api/vscodeApi";
 import { modelKey } from "../models";
 import type { ModelSelection, PermissionAction, PermissionTool } from "../api/types";
 
-type Tab = "general" | "models" | "tools" | "permissions" | "connection";
+type Tab = "general" | "models" | "permissions" | "connection";
 
 // Shorten an absolute config path to "<parent-folder>/<file>" so the UI shows
 // e.g. "opencode-vscode-client/opencode.json" instead of a full path that
@@ -52,7 +52,6 @@ export function SettingsPanel(): React.ReactElement | null {
   const setOpen = useStore((s) => s.setSettingsOpen);
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
-  const tools = useStore((s) => s.tools);
   const serverUrl = useStore((s) => s.serverUrl);
   const serverStatus = useStore((s) => s.serverStatus);
   const binaryPath = useStore((s) => s.binaryPath);
@@ -87,8 +86,6 @@ export function SettingsPanel(): React.ReactElement | null {
   const reloading = useStore((s) => s.permissionReloading);
 
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
-  const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>(settings.enabledTools);
-  const [toolFilter, setToolFilter] = useState("");
   const [draftModel, setDraftModel] = useState<ModelSelection | null>(selectedModel);
   const [draftAgent, setDraftAgent] = useState<string | null>(selectedAgent);
   const [draftAutoApprove, setDraftAutoApprove] = useState(settings.autoApprove);
@@ -109,8 +106,6 @@ export function SettingsPanel(): React.ReactElement | null {
   useEffect(() => {
     if (open) {
       setSystemPrompt(settings.systemPrompt);
-      setEnabledTools(settings.enabledTools);
-      setToolFilter("");
       setDraftModel(selectedModel);
       setDraftAgent(selectedAgent);
       setDraftAutoApprove(settings.autoApprove);
@@ -121,7 +116,7 @@ export function SettingsPanel(): React.ReactElement | null {
       setDraftSoundOnComplete(settings.soundOnComplete);
       setDraftSendOnEnter(settings.sendOnEnter);
     }
-  }, [open, settings.systemPrompt, settings.enabledTools, settings.autoApprove, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
+  }, [open, settings.systemPrompt, settings.autoApprove, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
 
   useEffect(() => {
     if (open && tab === "permissions") requestPermissionRules();
@@ -165,12 +160,6 @@ export function SettingsPanel(): React.ReactElement | null {
       .filter((p) => p.id === draftProviderId || !hiddenProv.has(p.id));
   }, [connectedProviders, hiddenModels, hiddenProviders, draftModel]);
 
-  const filteredTools = useMemo(() => {
-    const q = toolFilter.trim().toLowerCase();
-    if (!q) return tools;
-    return tools.filter((t) => t.id.toLowerCase().includes(q));
-  }, [tools, toolFilter]);
-
   const draftVariants = useMemo<string[] | null>(() => {
     if (!draftModel) return null;
     const p = connectedProviders.find((pr) => pr.id === draftModel.providerID);
@@ -181,7 +170,7 @@ export function SettingsPanel(): React.ReactElement | null {
   if (!open) return null;
 
   const save = () => {
-    updateSettings({ systemPrompt, enabledTools, autoApprove: draftAutoApprove, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter });
+    updateSettings({ systemPrompt, autoApprove: draftAutoApprove, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter });
     if (draftModel) {
       const sameKey =
         !!selectedModel && modelKey(draftModel) === modelKey(selectedModel);
@@ -196,10 +185,6 @@ export function SettingsPanel(): React.ReactElement | null {
       postMessage({ type: "selectAgent", agent: draftAgent });
     }
     setOpen(false);
-  };
-
-  const toggleTool = (id: string) => {
-    setEnabledTools((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const onModelChange = (value: string) => {
@@ -231,7 +216,6 @@ export function SettingsPanel(): React.ReactElement | null {
   const modeLabel = isManaged == null ? "—" : isManaged ? "Managed (spawned)" : "External";
 
   const currentModelValue = draftModel ? modelKey(draftModel) : "";
-  const enabledCount = Object.values(enabledTools).filter(Boolean).length;
   const hiddenSet = new Set(hiddenModels);
   const hiddenProviderSet = new Set(hiddenProviders);
   const serverDefault = config?.model ?? "(none — first connected model is used)";
@@ -272,7 +256,6 @@ export function SettingsPanel(): React.ReactElement | null {
   const TABS: { id: Tab; label: string }[] = [
     { id: "general", label: "General" },
     { id: "models", label: "Models" },
-    { id: "tools", label: "Tools" },
     { id: "permissions", label: "Permissions" },
     { id: "connection", label: "Connection" },
   ];
@@ -536,59 +519,6 @@ export function SettingsPanel(): React.ReactElement | null {
                 </div>
               </section>
             </>
-          )}
-
-          {tab === "tools" && (
-            <section className="settings-section">
-              <div className="settings-label-row">
-                <div className="settings-section-title">
-                  Tools{enabledCount > 0 ? ` (${enabledCount} enabled)` : ""}
-                </div>
-              </div>
-              <span className="settings-hint">
-                Force-enable specific tools for new messages. Empty = the agent&apos;s default
-                toolset. Approvals are handled separately (YOLO mode + per-request permission cards).
-              </span>
-              <div className="settings-field">
-                {tools.length === 0 ? (
-                  <div className="settings-empty">No tools available.</div>
-                ) : (
-                  <>
-                    <input
-                      className="settings-tool-filter"
-                      type="text"
-                      placeholder="Filter tools…"
-                      value={toolFilter}
-                      onChange={(e) => setToolFilter(e.target.value)}
-                    />
-                    <div className="settings-tools">
-                      {filteredTools.map((t) => {
-                        const checked = !!enabledTools[t.id];
-                        return (
-                          <label key={t.id} className={`settings-tool ${checked ? "checked" : ""}`}>
-                            <input
-                              type="checkbox"
-                              className="settings-check"
-                              checked={checked}
-                              onChange={() => toggleTool(t.id)}
-                            />
-                            <span className="settings-tool-meta">
-                              <span className="settings-tool-name">{t.id}</span>
-                              {t.description && (
-                                <span className="settings-tool-desc">{t.description}</span>
-                              )}
-                            </span>
-                          </label>
-                        );
-                      })}
-                      {filteredTools.length === 0 && (
-                        <div className="settings-empty">No tools match “{toolFilter}”.</div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </section>
           )}
 
           {tab === "permissions" && (

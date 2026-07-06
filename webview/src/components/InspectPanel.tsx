@@ -51,8 +51,8 @@ function ContextUsage({ sessionId }: { sessionId: string }): React.ReactElement 
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
   const segs = [
-    { key: "fresh", value: fresh, color: "var(--vscode-charts-blue, #4aa5ff)", label: "Fresh input" },
-    { key: "cache", value: cached, color: "var(--vscode-charts-purple, #b079e0)", label: "Cached" },
+    { key: "fresh", value: fresh, color: "var(--vscode-charts-blue, #4aa5ff)", label: "User + new" },
+    { key: "cache", value: cached, color: "var(--vscode-charts-purple, #b079e0)", label: "Agent" },
   ];
 
   return (

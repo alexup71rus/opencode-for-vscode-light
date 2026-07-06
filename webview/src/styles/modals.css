@@ -191,22 +191,6 @@
   border-color: var(--vscode-focusBorder, var(--vscode-input-border, transparent));
 }
 
-.settings-tool-filter {
-  width: 100%;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
-  border-radius: 4px;
-  padding: 5px 8px;
-  font-family: inherit;
-  font-size: 12px;
-  outline: none;
-}
-
-.settings-tool-filter:focus {
-  border-color: var(--vscode-focusBorder, var(--vscode-input-border, transparent));
-}
-
 .settings-label-row {
   display: flex;
   align-items: baseline;
@@ -235,61 +219,6 @@
 
 .settings-textarea:focus {
   border-color: var(--vscode-focusBorder, var(--vscode-input-border, transparent));
-}
-
-.settings-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
-  border-radius: 4px;
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.settings-tool {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.settings-tool:hover {
-  background: var(--vscode-list-hoverBackground);
-}
-
-.settings-tool.checked .settings-tool-name {
-  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
-}
-
-.settings-tool .settings-check {
-  margin-top: 1px;
-}
-
-.settings-tool-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.settings-tool-name {
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.settings-tool-desc {
-  font-size: 11px;
-  opacity: 0.6;
-  line-height: 1.35;
-  white-space: normal;
 }
 
 .settings-empty {
@@ -510,8 +439,8 @@
   opacity: 0.5;
 }
 
-/* Dedicated control styling — do NOT reuse .settings-tool-filter, whose
-   width:100% collides with the flex layout and shoves the row around. */
+/* Dedicated control styling for the Add-rule block — kept separate from the
+   generic input/select classes so the flex layout stays predictable. */
 .perm-tool-select,
 .perm-action-select,
 .perm-pattern-input,

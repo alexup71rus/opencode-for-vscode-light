@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { ModelSelector } from "./ModelSelector";
@@ -21,6 +21,15 @@ interface MentionState {
 
 const NO_MENTION: MentionState = { active: false, start: -1, query: "" };
 
+/** One selectable row in the / drop-down: a command (with `/` prefix) or a
+ *  skill (with `$` prefix, colored). Unified so keyboard nav spans both. */
+type SlashItem =
+  | { kind: "command"; name: string; description?: string; pinned: boolean }
+  | { kind: "skill"; name: string; description?: string; pinned: boolean };
+
+/** Stable storage key for a pin — `command:<name>` / `skill:<name>`. */
+const pinKey = (item: Pick<SlashItem, "kind" | "name">): string => `${item.kind}:${item.name}`;
+
 export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const text = useStore((s) => s.drafts[sessionId] ?? "");
   const setDraft = useStore((s) => s.setDraft);
@@ -33,6 +42,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const [cursorPos, setCursorPos] = useState(0);
   const [slashSelected, setSlashSelected] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
+  const [skillSelected, setSkillSelected] = useState(0);
+  const [skillDismissed, setSkillDismissed] = useState(false);
   const [mentionSelected, setMentionSelected] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
   const [selTarget, setSelTarget] = useState<number | null>(null);
@@ -50,6 +61,9 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const totalTokens = useStore((s) => s.totalTokens);
   const totalCost = useStore((s) => s.totalCost);
   const commands = useStore((s) => s.commands);
+  const skills = useStore((s) => s.skills);
+  const pinnedSlash = useStore((s) => s.pinnedSlash);
+  const togglePinnedSlash = useStore((s) => s.togglePinnedSlash);
   const agents = useStore((s) => s.agents);
   const selectedAgent = useStore((s) => s.selectedAgent);
   const mentionResults = useStore((s) => s.mentionResults);
@@ -104,6 +118,9 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     if (commands.length === 0) {
       postMessage({ type: "getCommands" });
     }
+    if (skills.length === 0) {
+      postMessage({ type: "getSkills" });
+    }
   }, []);
 
   useEffect(() => {
@@ -124,6 +141,19 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   useEffect(() => {
     if (slashQuery !== null) setSlashDismissed(false);
   }, [slashQuery]);
+
+  // Separate `$` trigger for skills (like `/` for commands but invokes a skill,
+  // which is just a normal message — the agent recognizes the `$name` marker).
+  const skillQuery = useMemo(() => {
+    if (!text.startsWith("$")) return null;
+    const rest = text.slice(1);
+    if (rest.includes(" ")) return null;
+    return rest;
+  }, [text]);
+
+  useEffect(() => {
+    if (skillQuery !== null) setSkillDismissed(false);
+  }, [skillQuery]);
 
   const mention = useMemo<MentionState>(() => {
     const before = text.slice(0, cursorPos);
@@ -146,6 +176,50 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
       .slice(0, 50);
   }, [commands, slashQuery]);
 
+  const filteredSkills = useMemo(() => {
+    if (slashQuery === null) return [];
+    const q = slashQuery.toLowerCase();
+    return skills
+      .filter((s) => !q || s.name.toLowerCase().startsWith(q))
+      .slice(0, 50);
+  }, [skills, slashQuery]);
+
+  // Unified list for the / drop-down. Commands come first (pinned commands
+  // promoted to the very top, behind a "Pinned" separator), then skills behind
+  // a "Skills" separator. Skills are still tagged with `pinned` (so a pinned
+  // skill shows its gold star), but only commands actually reorder here —
+  // pinned skills surface at the top of the $ drop-down.
+  const slashItems = useMemo<SlashItem[]>(() => {
+    if (slashQuery === null) return [];
+    const tagged = <T extends { name: string; description?: string }>(arr: T[], kind: "command" | "skill"): SlashItem[] =>
+      arr.map<SlashItem>((x) => ({
+        kind,
+        name: x.name,
+        description: x.description,
+        pinned: pinnedSlash.includes(pinKey({ kind, name: x.name })),
+      }));
+    const cmds = tagged(filteredCommands, "command");
+    const pinnedCmds = cmds.filter((c) => c.pinned);
+    const restCmds = cmds.filter((c) => !c.pinned);
+    const sks = tagged(filteredSkills, "skill");
+    return [...pinnedCmds, ...restCmds, ...sks];
+  }, [filteredCommands, filteredSkills, slashQuery, pinnedSlash]);
+
+  // $-drop-down: skills only, pinned first.
+  const dollarSkillItems = useMemo<SlashItem[]>(() => {
+    if (skillQuery === null) return [];
+    return skills
+      .filter((s) => !skillQuery || s.name.toLowerCase().startsWith(skillQuery.toLowerCase()))
+      .slice(0, 50)
+      .map<SlashItem>((s) => ({
+        kind: "skill",
+        name: s.name,
+        description: s.description,
+        pinned: pinnedSlash.includes(pinKey({ kind: "skill", name: s.name })),
+      }))
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned));
+  }, [skills, skillQuery, pinnedSlash]);
+
   const filteredFiles = useMemo<string[]>(() => {
     if (!mention.active) return [];
     return mentionResults.slice(0, 50);
@@ -154,6 +228,10 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   useEffect(() => {
     setSlashSelected(0);
   }, [slashQuery]);
+
+  useEffect(() => {
+    setSkillSelected(0);
+  }, [skillQuery]);
 
   useEffect(() => {
     setMentionSelected(0);
@@ -207,9 +285,11 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
-  const slashVisible = slashQuery !== null && !slashDismissed && filteredCommands.length > 0;
+  const slashVisible = slashQuery !== null && !slashDismissed && slashItems.length > 0;
+  const skillVisible = skillQuery !== null && !skillDismissed && dollarSkillItems.length > 0;
   const mentionVisible = mention.active && !mentionDismissed && filteredFiles.length > 0;
-  const slashSel = Math.min(slashSelected, Math.max(0, filteredCommands.length - 1));
+  const slashSel = Math.min(slashSelected, Math.max(0, slashItems.length - 1));
+  const skillSel = Math.min(skillSelected, Math.max(0, dollarSkillItems.length - 1));
   const mentionSel = Math.min(mentionSelected, Math.max(0, filteredFiles.length - 1));
 
   const fileIncluded = activeFilePath && !dropFile;
@@ -318,13 +398,31 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     postMessage({ type: "abortSession", sessionId });
   };
 
-  const selectCommand = (cmd: CommandInfo) => {
+  const insertSlashItem = (item: SlashItem) => {
+    // Replace the leading "/query" with the chosen item's token (prefixed per
+    // kind) and a trailing space so the user can keep typing arguments. The
+    // text after the query is preserved. No auto-send — skills/commands often
+    // need arguments, so we drop the user back into the textarea.
     const rest = slashQuery !== null ? text.slice(1 + slashQuery.length) : "";
-    const newText = "/" + cmd.name + " " + rest;
-    const cursor = 1 + cmd.name.length + 1;
+    const prefix = item.kind === "command" ? "/" : "$";
+    const newText = prefix + item.name + " " + rest;
+    const cursor = prefix.length + item.name.length + 1;
     setText(newText);
     setSelTarget(cursor);
     setSlashDismissed(true);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const insertSkill = (name: string) => {
+    // Same idea as insertSlashItem but for the `$`-triggered drop-down: replace
+    // the leading "$query" with `$name ` and keep the rest of the text.
+    const rest = skillQuery !== null ? text.slice(1 + skillQuery.length) : "";
+    const newText = "$" + name + " " + rest;
+    const cursor = 1 + name.length + 1;
+    setText(newText);
+    setSelTarget(cursor);
+    setSkillDismissed(true);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const selectFile = (path: string) => {
@@ -354,6 +452,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
       !e.metaKey &&
       !e.ctrlKey &&
       !slashVisible &&
+      !skillVisible &&
       !mentionVisible
     ) {
       e.preventDefault();
@@ -363,11 +462,18 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
 
     if (e.key === "Tab" && !mod && !e.altKey) {
       if (slashVisible) {
-        const cmd = filteredCommands[slashSel];
-        if (cmd) {
+        const item = slashItems[slashSel];
+        if (item) {
           e.preventDefault();
-          runSlash(cmd.name, "");
-          setSlashDismissed(true);
+          insertSlashItem(item);
+        }
+        return;
+      }
+      if (skillVisible) {
+        const name = dollarSkillItems[skillSel]?.name;
+        if (name) {
+          e.preventDefault();
+          insertSkill(name);
         }
         return;
       }
@@ -382,6 +488,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
       e.key === "Escape" &&
       attachOpen &&
       !slashVisible &&
+      !skillVisible &&
       !mentionVisible
     ) {
       e.preventDefault();
@@ -392,25 +499,49 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     if (slashVisible) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSlashSelected((i) => (i + 1) % filteredCommands.length);
+        setSlashSelected((i) => (i + 1) % slashItems.length);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSlashSelected((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
+        setSlashSelected((i) => (i - 1 + slashItems.length) % slashItems.length);
         return;
       }
       if (e.key === "Enter") {
-        const cmd = filteredCommands[slashSel];
-        if (cmd) {
+        const item = slashItems[slashSel];
+        if (item) {
           e.preventDefault();
-          selectCommand(cmd);
+          insertSlashItem(item);
         }
         return;
       }
       if (e.key === "Escape") {
         e.preventDefault();
         setSlashDismissed(true);
+        return;
+      }
+    } else if (skillVisible) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSkillSelected((i) => (i + 1) % dollarSkillItems.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSkillSelected((i) => (i - 1 + dollarSkillItems.length) % dollarSkillItems.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        const name = dollarSkillItems[skillSel]?.name;
+        if (name) {
+          e.preventDefault();
+          insertSkill(name);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSkillDismissed(true);
         return;
       }
     } else if (mentionVisible) {
@@ -530,20 +661,102 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
           <div className="chat-input-textarea-wrap">
             {slashVisible && (
               <div className="slash-dropdown">
-                {filteredCommands.map((cmd, i) => (
-                  <div
-                    key={cmd.name}
-                    className={`slash-item ${i === slashSel ? "selected" : ""}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      selectCommand(cmd);
-                    }}
-                    onMouseEnter={() => setSlashSelected(i)}
-                  >
-                    <span className="slash-item-name">/{cmd.name}</span>
-                    {cmd.description && <span className="slash-item-desc">{cmd.description}</span>}
-                  </div>
-                ))}
+                {slashItems.map((item, i) => {
+                  const isCommand = item.kind === "command";
+                  const prev = slashItems[i - 1];
+                  // "Pinned" sep before the first pinned command; "Skills" sep
+                  // before the first skill row.
+                  const showPinnedSep = isCommand && item.pinned && !(prev?.kind === "command" && prev.pinned);
+                  const showSkillsSep = !isCommand && (i === 0 || slashItems[i - 1].kind === "command");
+                  return (
+                    <Fragment key={`${item.kind}:${item.name}`}>
+                      {showPinnedSep && <div className="slash-sep" role="separator" aria-hidden="true">Pinned</div>}
+                      {showSkillsSep && <div className="slash-sep" role="separator" aria-hidden="true">Skills</div>}
+                      <div
+                        className={`slash-item ${i === slashSel ? "selected" : ""} ${isCommand ? "" : "slash-item-skill"}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          insertSlashItem(item);
+                        }}
+                        onMouseEnter={() => setSlashSelected(i)}
+                      >
+                        {isCommand ? (
+                          <button
+                            className={`slash-pin ${item.pinned ? "slash-pin-on" : ""}`}
+                            title={item.pinned ? "Unpin" : "Pin to top"}
+                            aria-label={item.pinned ? `Unpin ${item.name}` : `Pin ${item.name}`}
+                            aria-pressed={item.pinned}
+                            onMouseDown={(e) => {
+                              // Stop the row's mousedown from firing insertSlashItem.
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePinnedSlash(pinKey(item));
+                            }}
+                          >
+                            {item.pinned ? "★" : "☆"}
+                          </button>
+                        ) : (
+                          // Skills in the / drop-down aren't pinnable here (pin
+                          // lives in the $ drop-down). Keep the slot so the name
+                          // stays aligned with command rows.
+                          <span className="slash-pin-slot" aria-hidden="true" />
+                        )}
+                        <span className="slash-item-text">
+                          <span className="slash-item-name">
+                            {isCommand ? "/" : "$"}
+                            {item.name}
+                          </span>
+                          {item.description && <span className="slash-item-desc">{item.description}</span>}
+                        </span>
+                      </div>
+                    </Fragment>
+                  );
+                })}
+              </div>
+            )}
+            {skillVisible && (
+              <div className="slash-dropdown">
+                {dollarSkillItems.map((s, i) => {
+                  const prev = dollarSkillItems[i - 1];
+                  const showPinnedSep = s.pinned && !prev?.pinned;
+                  return (
+                    <Fragment key={`${s.kind}:${s.name}`}>
+                      {showPinnedSep && <div className="slash-sep" role="separator" aria-hidden="true">Pinned</div>}
+                      <div
+                        className={`slash-item ${i === skillSel ? "selected" : ""} slash-item-skill`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          insertSkill(s.name);
+                        }}
+                        onMouseEnter={() => setSkillSelected(i)}
+                      >
+                        <button
+                          className={`slash-pin ${s.pinned ? "slash-pin-on" : ""}`}
+                          title={s.pinned ? "Unpin" : "Pin to top"}
+                          aria-label={s.pinned ? `Unpin ${s.name}` : `Pin ${s.name}`}
+                          aria-pressed={s.pinned}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePinnedSlash(pinKey(s));
+                          }}
+                        >
+                          {s.pinned ? "★" : "☆"}
+                        </button>
+                        <span className="slash-item-text">
+                          <span className="slash-item-name">${s.name}</span>
+                          {s.description && <span className="slash-item-desc">{s.description}</span>}
+                        </span>
+                      </div>
+                    </Fragment>
+                  );
+                })}
               </div>
             )}
             {mentionVisible && (

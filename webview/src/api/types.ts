@@ -14,11 +14,6 @@ export interface AgentInfo {
   color?: string;
 }
 
-export interface ToolInfo {
-  id: string;
-  description?: string;
-}
-
 export interface CommandInfo {
   name: string;
   description?: string;
@@ -29,7 +24,6 @@ export interface SendMessageOptions {
   model?: ModelSelection;
   agent?: string;
   system?: string;
-  tools?: { [key: string]: boolean };
 }
 
 export interface MessageAttachment {
@@ -438,7 +432,7 @@ export type ExtensionToWebview =
   | { type: "questionRemoved"; sessionId: string; requestId: string }
   | { type: "sessionStatus"; sessionId: string; status: SessionStatusInfo }
   | { type: "models"; providers: ProviderInfo[]; defaultModel: ModelSelection | null }
-  | { type: "agents"; agents: AgentInfo[]; tools: ToolInfo[] }
+  | { type: "agents"; agents: AgentInfo[] }
   | { type: "commands"; commands: CommandInfo[] }
   | { type: "fileResults"; files: string[]; source: FileSearchSource; query: string }
   | { type: "skills"; skills: SkillInfo[] }
@@ -477,6 +471,7 @@ export type WebviewToExtension =
   | { type: "refreshSessions" }
   | { type: "refreshModels" }
   | { type: "getCommands" }
+  | { type: "getSkills" }
   | { type: "executeCommand"; sessionId: string; command: string; args: string }
   | { type: "compactSession"; sessionId: string; model: ModelSelection }
   | { type: "findFiles"; query: string; source: FileSearchSource }

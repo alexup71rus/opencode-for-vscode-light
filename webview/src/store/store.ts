@@ -10,7 +10,6 @@ import type {
   SessionStatusInfo,
   SessionWithMeta,
   AgentInfo,
-  ToolInfo,
   CommandInfo,
   SkillInfo,
   Todo,
@@ -29,7 +28,6 @@ import type { FileChange } from "../changes";
 
 export interface Settings {
   systemPrompt: string;
-  enabledTools: Record<string, boolean>;
   autoApprove: boolean;
   expandThinking: boolean;
   autoExpandBash: boolean;
@@ -73,7 +71,6 @@ export interface AppState {
   selectedModel: ModelSelection | null;
 
   agents: AgentInfo[];
-  tools: ToolInfo[];
   selectedAgent: string | null;
   agentsRequested: boolean;
 
@@ -121,6 +118,7 @@ export interface AppState {
   rightWidth: number;
   recentPanelHidden: boolean;
   contextLegendOpen: boolean;
+  pinnedSlash: string[];
   changesBaseline: Record<string, string>;
   queuedMessages: QueuedMessage[];
   diffModal:
@@ -138,6 +136,8 @@ export interface AppState {
   toggleRightPanel: () => void;
   setRecentPanelHidden: (hidden: boolean) => void;
   setContextLegendOpen: (open: boolean) => void;
+  /** Toggle a command/skill pin. `key` is `command:<name>` or `skill:<name>`. */
+  togglePinnedSlash: (key: string) => void;
   applyChanges: (sessionId: string, messageId: string) => void;
   openFileDiffModal: (filePath: string, edits: { oldStr: string; newStr: string }[], isNewFile: boolean) => void;
   closeFileDiffModal: () => void;
@@ -230,7 +230,6 @@ const initialState = {
   providers: [] as ProviderInfo[],
   selectedModel: null as ModelSelection | null,
   agents: [] as AgentInfo[],
-  tools: [] as ToolInfo[],
   selectedAgent: null as string | null,
   agentsRequested: false,
   commands: [] as CommandInfo[],
@@ -242,7 +241,7 @@ const initialState = {
   todosBySession: {} as Record<string, Todo[]>,
   mcpStatus: {} as Record<string, McpServerStatus>,
   lspStatus: [] as LspStatusInfo[],
-  settings: { systemPrompt: "", enabledTools: {}, autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: true, autoExpandError: true, soundOnComplete: true, sendOnEnter: true },
+  settings: { systemPrompt: "", autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: true, autoExpandError: true, soundOnComplete: true, sendOnEnter: true },
   pinnedSessions: [] as string[],
   sessionSearch: "",
   collapsedProviders: [] as string[],
@@ -282,6 +281,10 @@ interface PersistedUi {
   recentPanelHidden?: boolean;
   contextLegendOpen?: boolean;
   changesBaseline?: Record<string, string>;
+  /** Pinned commands/skills, keyed as `command:<name>` / `skill:<name>` so
+   *  commands and skills with the same name stay distinct. Surfaced at the top
+   *  of the / and $ drop-downs behind a "Pinned" separator. */
+  pinnedSlash?: string[];
 }
 
 function loadPersistedUi(): PersistedUi {
@@ -314,7 +317,6 @@ export const useStore = create<AppState>((set, get) => ({
   rightPanelOpen: persistedUi.rightPanelOpen ?? false,
   settings: {
     systemPrompt: persistedUi.settings?.systemPrompt ?? "",
-    enabledTools: persistedUi.settings?.enabledTools ?? {},
     autoApprove: persistedUi.settings?.autoApprove ?? false,
     expandThinking: persistedUi.settings?.expandThinking ?? false,
     autoExpandBash: persistedUi.settings?.autoExpandBash ?? false,
@@ -334,6 +336,7 @@ export const useStore = create<AppState>((set, get) => ({
   recentPanelHidden: persistedUi.recentPanelHidden ?? false,
   contextLegendOpen: persistedUi.contextLegendOpen ?? false,
   changesBaseline: persistedUi.changesBaseline ?? {},
+  pinnedSlash: persistedUi.pinnedSlash ?? [],
 
   setSidebarOpen: (open) => {
     savePersistedUi({ sidebarOpen: open });
@@ -365,6 +368,14 @@ export const useStore = create<AppState>((set, get) => ({
   setContextLegendOpen: (open) => {
     savePersistedUi({ contextLegendOpen: open });
     set({ contextLegendOpen: open });
+  },
+  togglePinnedSlash: (key) => {
+    set((s) => {
+      const has = s.pinnedSlash.includes(key);
+      const next = has ? s.pinnedSlash.filter((k) => k !== key) : [...s.pinnedSlash, key];
+      savePersistedUi({ pinnedSlash: next });
+      return { pinnedSlash: next };
+    });
   },
   applyChanges: (sessionId, messageId) => {
     const next = { ...(get().changesBaseline ?? {}), [sessionId]: messageId };
@@ -565,16 +576,25 @@ export const useStore = create<AppState>((set, get) => ({
           savePersistedUi({ selectedAgent: next });
           return {
             agents: msg.agents,
-            tools: msg.tools,
             agentsRequested: false,
             selectedAgent: next,
           };
         });
         break;
 
-      case "commands":
-        set({ commands: msg.commands });
+      case "commands": {
+        // Drop pin entries for commands that no longer exist (renamed/removed).
+        set((s) => {
+          const valid = new Set(msg.commands.map((c) => `command:${c.name}`));
+          const pruned = s.pinnedSlash.filter(
+            (k) => !k.startsWith("command:") || valid.has(k),
+          );
+          if (pruned.length === s.pinnedSlash.length) return { commands: msg.commands };
+          savePersistedUi({ pinnedSlash: pruned });
+          return { commands: msg.commands, pinnedSlash: pruned };
+        });
         break;
+      }
 
       case "fileResults": {
         if (msg.source === "mention") {
@@ -591,9 +611,19 @@ export const useStore = create<AppState>((set, get) => ({
         break;
       }
 
-      case "skills":
-        set({ skills: msg.skills });
+      case "skills": {
+        // Drop pin entries for skills that no longer exist (renamed/removed).
+        set((s) => {
+          const valid = new Set(msg.skills.map((sk) => `skill:${sk.name}`));
+          const pruned = s.pinnedSlash.filter(
+            (k) => !k.startsWith("skill:") || valid.has(k),
+          );
+          if (pruned.length === s.pinnedSlash.length) return { skills: msg.skills };
+          savePersistedUi({ pinnedSlash: pruned });
+          return { skills: msg.skills, pinnedSlash: pruned };
+        });
         break;
+      }
 
       case "todos":
         set((s) => ({

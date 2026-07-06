@@ -80,12 +80,12 @@ export function ContextIndicator({ sessionId }: Props): React.ReactElement | nul
         </div>
         <div className="ctx-tip-row">
           <span className="ctx-dot ctx-dot-new" />
-          <span>Fresh input</span>
+          <span>User + new</span>
           <span>{formatTokenCount(fresh)}</span>
         </div>
         <div className="ctx-tip-row">
           <span className="ctx-dot ctx-dot-cache" />
-          <span>Cached</span>
+          <span>Agent</span>
           <span>{formatTokenCount(cached)}</span>
         </div>
         {t.reasoning > 0 && (
