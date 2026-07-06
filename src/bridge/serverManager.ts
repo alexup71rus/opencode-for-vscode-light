@@ -1,6 +1,9 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import * as net from "node:net";
+import * as os from "node:os";
+import * as path from "node:path";
 
 export interface ServerInfo {
   url: string;
@@ -12,6 +15,30 @@ const LISTENING_RE = /opencode server listening on (https?:\/\/[^\s]+)/i;
 const STARTUP_TIMEOUT_MS = 15_000;
 const HEALTH_CHECK_ATTEMPTS = 40;
 const HEALTH_CHECK_DELAY_MS = 250;
+
+/**
+ * Permission baseline injected via OPENCODE_CONFIG (precedence: above global,
+ * below project). Action tools default to "ask" so the existing approval card
+ * (webview/src/components/ToolCallView.tsx) actually receives permission.updated
+ * events — without this, opencode's default is "allow all" and no confirmation
+ * ever fires. Read-only tools (read/glob/grep/lsp/skill/question) keep the
+ * global "allow" default so the agent isn't prompted on every file read.
+ *
+ * The server merges global + this file + project natively, so the user's
+ * explicit rules (global or project) always override this baseline. We must
+ * use OPENCODE_CONFIG (a path; below project) rather than OPENCODE_CONFIG_CONTENT
+ * (inline; above project) so the project file stays authoritative and
+ * agent-editable. Avoid a "*" catch-all — its ordering vs specific rules is
+ * ambiguous under last-match-wins, so each tool is named explicitly.
+ * See docs/future-permission-table.md for the full investigation.
+ */
+const PERMISSION_BASELINE: Readonly<Record<string, "ask">> = Object.freeze({
+  bash: "ask",
+  edit: "ask",
+  task: "ask",
+  webfetch: "ask",
+  websearch: "ask",
+});
 
 export class ServerManager {
   private child: ChildProcess | null = null;
@@ -89,13 +116,20 @@ export class ServerManager {
     const password = crypto.randomUUID();
     const authHeader = makeAuthHeader(password);
 
+    const baselineConfigPath = this.writePermissionBaseline();
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      OPENCODE_SERVER_PASSWORD: password,
+    };
+    if (baselineConfigPath) env.OPENCODE_CONFIG = baselineConfigPath;
+
     const child = spawn(
       binary,
       ["serve", "--port", String(port), "--hostname", this.hostname],
       {
         cwd: workdir,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, OPENCODE_SERVER_PASSWORD: password },
+        env,
       },
     );
     this.child = child;
@@ -121,6 +155,27 @@ export class ServerManager {
     });
 
     return { url: actualUrl, authHeader, isManaged: true };
+  }
+
+  /**
+   * Write the permission baseline to a temp file and return its path, which is
+   * fed to the server via OPENCODE_CONFIG. Returns undefined on failure so the
+   * server can still start (just without the ask-default) rather than crashing.
+   */
+  private writePermissionBaseline(): string | undefined {
+    try {
+      const file = path.join(
+        os.tmpdir(),
+        `opencode-ext-permission-${process.pid}.json`,
+      );
+      fs.writeFileSync(file, JSON.stringify({ permission: PERMISSION_BASELINE }), {
+        encoding: "utf-8",
+      });
+      return file;
+    } catch (err) {
+      this.log?.(`[server] failed to write permission baseline: ${formatError(err)}`);
+      return undefined;
+    }
   }
 
   /**
