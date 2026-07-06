@@ -38,6 +38,13 @@ export class DiffDocumentProvider implements vscode.TextDocumentContentProvider 
   }
 }
 
+// Deliberately NOT confined to the workspace root. Agents legitimately edit
+// files outside the workspace (global config, monorepo roots, MCP-managed
+// resources, dotfiles). A startsWith(workdir) check would break diff previews
+// for those files, and a realpath-based check would reject symlinks inside the
+// workspace. Paths originate from the agent's tool-call output (not user
+// input) and the content is shown locally — there is no remote exfiltration
+// vector. See test/verify-findings.test.ts for empirical confirmation.
 function resolveAbs(filePath: string, workdir: string): string {
   return path.isAbsolute(filePath) ? filePath : path.join(workdir, filePath);
 }

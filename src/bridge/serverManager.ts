@@ -16,6 +16,7 @@ const HEALTH_CHECK_DELAY_MS = 250;
 export class ServerManager {
   private child: ChildProcess | null = null;
   private info: ServerInfo | null = null;
+  private pending: Promise<ServerInfo> | null = null;
   private readonly hostname: string;
 
   constructor(
@@ -52,12 +53,18 @@ export class ServerManager {
     if (this.info) {
       return this.info;
     }
+    if (this.pending) return this.pending;
     if (this.externalUrl && this.externalUrl.trim().length > 0) {
-      this.info = await this.connectExternal();
-      return this.info;
+      this.pending = this.connectExternal();
+    } else {
+      this.pending = this.spawnManaged(workdir);
     }
-    this.info = await this.spawnManaged(workdir);
-    return this.info;
+    try {
+      this.info = await this.pending;
+      return this.info;
+    } finally {
+      this.pending = null;
+    }
   }
 
   private async connectExternal(): Promise<ServerInfo> {

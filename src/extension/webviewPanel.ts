@@ -816,10 +816,10 @@ export class WebviewPanelManager {
 
     const csp = [
       `default-src 'none'`,
-      `img-src ${webview.cspSource} https: data:`,
+      `img-src ${webview.cspSource} data:`,
       `style-src ${webview.cspSource} 'unsafe-inline'`,
       `font-src ${webview.cspSource}`,
-      `connect-src ${webview.cspSource} https: ws: wss:`,
+      `connect-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
     ].join("; ");
 

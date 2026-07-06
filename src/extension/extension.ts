@@ -172,6 +172,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       reconnect,
     );
 
+    context.subscriptions.push(panelManager);
     registerCommands(context, panelManager, sessionService);
 
     const statusItem = vscode.window.createStatusBarItem(

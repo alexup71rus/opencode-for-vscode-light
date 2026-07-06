@@ -524,6 +524,11 @@ export class SessionService extends EventEmitter {
     this.emit("messagePartRemoved", { sessionId: sessionID, messageID, partID });
   };
 
+  // The SDK defines EventPermissionUpdated as { properties: Permission } —
+  // the ONLY event whose properties is a bare domain object rather than a
+  // wrapper. eventStream.ts emits event.properties verbatim, so the argument
+  // here IS the Permission itself (with sessionID as a direct field).
+  // Verified against @opencode-ai/sdk types.gen.d.ts + test/verify-findings.test.ts.
   private handlePermissionUpdated = (permission: Permission): void => {
     const sessionId = permission.sessionID;
     if (!sessionId) return;

@@ -192,12 +192,14 @@ export default function App(): React.ReactElement {
       }
 
       if (e[mod] && e.shiftKey && (e.key === "S" || e.key === "s")) {
+        if (typing) return;
         e.preventDefault();
         toggleSidebar();
         return;
       }
 
       if (e[mod] && !e.shiftKey && (e.key === "k" || e.key === "K")) {
+        if (typing) return;
         e.preventDefault();
         postMessage({ type: "createSession" });
         return;
@@ -211,6 +213,7 @@ export default function App(): React.ReactElement {
       }
 
       if (e[mod] && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        if (typing) return;
         if (sessions.length === 0) return;
         e.preventDefault();
         // Navigation order mirrors the SessionList: pinned first (by updated),

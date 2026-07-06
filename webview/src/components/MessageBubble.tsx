@@ -23,6 +23,19 @@ interface MessageBubbleProps {
 
 const INLINE_PATTERN = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\[[^\]]+\]\([^)]+\))/g;
 
+function isSafeUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (trimmed.startsWith("#") || trimmed.startsWith("/") || trimmed.startsWith("./")) {
+    return true;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:";
+  } catch {
+    return false;
+  }
+}
+
 function parseInline(text: string, keyBase: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   const pattern = new RegExp(INLINE_PATTERN.source, "g");
@@ -50,11 +63,20 @@ function parseInline(text: string, keyBase: string): React.ReactNode[] {
     } else {
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
       if (linkMatch) {
-        nodes.push(
-          <a key={key} className="md-link" href={linkMatch[2]} target="_blank" rel="noopener noreferrer">
-            {linkMatch[1]}
-          </a>,
-        );
+        const rawHref = linkMatch[2];
+        if (isSafeUrl(rawHref)) {
+          nodes.push(
+            <a key={key} className="md-link" href={rawHref} target="_blank" rel="noopener noreferrer">
+              {linkMatch[1]}
+            </a>,
+          );
+        } else {
+          nodes.push(
+            <span key={key} className="md-link-disabled">
+              {linkMatch[1]}
+            </span>,
+          );
+        }
       }
     }
     lastIndex = match.index + token.length;
@@ -73,8 +95,43 @@ function isBlockStart(ln: string): boolean {
     /^---+\s*$/.test(ln) ||
     /^>\s?/.test(ln) ||
     /^\s*[-*]\s+/.test(ln) ||
-    /^\s*\d+\.\s+/.test(ln)
+    /^\s*\d+\.\s+/.test(ln) ||
+    /^\s*\|.*\|/.test(ln)
   );
+}
+
+function parseTableRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+
+function isTableSeparator(line: string): boolean {
+  const s = line.trim();
+  if (!s.includes("-")) return false;
+  if (!/^\|?[\s:|-]+$/.test(s)) return false;
+  return true;
+}
+
+function tryParseTable(lines: string[], start: number): { header: string[]; body: string[][]; next: number } | null {
+  if (start + 1 >= lines.length) return null;
+  const headerLine = lines[start];
+  const sepLine = lines[start + 1];
+  if (!headerLine.includes("|")) return null;
+  if (!isTableSeparator(sepLine)) return null;
+
+  const header = parseTableRow(headerLine);
+  const seps = parseTableRow(sepLine);
+  if (header.length !== seps.length) return null;
+
+  const body: string[][] = [];
+  let idx = start + 2;
+  while (idx < lines.length && lines[idx].includes("|") && lines[idx].trim() !== "") {
+    body.push(parseTableRow(lines[idx]));
+    idx++;
+  }
+  return { header, body, next: idx };
 }
 
 function renderMarkdown(text: string): React.ReactNode {
@@ -188,6 +245,34 @@ function renderMarkdown(text: string): React.ReactNode {
 
     if (line.trim() === "") {
       i++;
+      continue;
+    }
+
+    const table = tryParseTable(lines, i);
+    if (table) {
+      blocks.push(
+        <div key={key++} className="md-table-wrap">
+          <table className="md-table">
+            <thead>
+              <tr>
+                {table.header.map((h, ci) => (
+                  <th key={ci}>{parseInline(h, `th-${key}-${ci}`)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.body.map((row, ri) => (
+                <tr key={ri}>
+                  {row.map((c, ci) => (
+                    <td key={ci}>{parseInline(c, `td-${key}-${ri}-${ci}`)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      i = table.next;
       continue;
     }
 
@@ -319,10 +404,12 @@ export const MessageBubble = memo(function MessageBubble({
   );
   const fileExists = useStore((s) => s.fileExists);
   const checkFilesExist = useStore((s) => s.checkFilesExist);
+  const changedPathsKey = changedFiles.map((cf) => cf.filePath).join("\n");
   useEffect(() => {
-    if (changedFiles.length === 0) return;
-    checkFilesExist(changedFiles.map((cf) => cf.filePath));
-  }, [changedFiles, checkFilesExist]);
+    if (!changedPathsKey) return;
+    checkFilesExist(changedPathsKey.split("\n"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changedPathsKey]);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import type { QuestionRequest } from "../api/types";
@@ -15,8 +15,10 @@ interface QuestionOverlayProps {
  * question. Backed by GET /question polling + POST .../reply|/reject.
  */
 export function QuestionOverlay({ sessionId }: QuestionOverlayProps): React.ReactElement | null {
-  const requests = useStore(
-    (s) => s.pendingQuestions.filter((q) => q.sessionID === sessionId),
+  const allQuestions = useStore((s) => s.pendingQuestions);
+  const requests = useMemo(
+    () => allQuestions.filter((q) => q.sessionID === sessionId),
+    [allQuestions, sessionId],
   );
   // selection[`${requestId}:${qi}`] = chosen option labels
   const [selection, setSelection] = useState<Record<string, string[]>>({});
