@@ -9,7 +9,6 @@ webview/dist/
 TODO.md
 docs/superpowers/
 docs/SPEC-*.md
-docs/future-permission-table.md
 
 # Tooling artifacts
 .playwright-mcp/
