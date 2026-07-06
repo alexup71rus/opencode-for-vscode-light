@@ -349,6 +349,7 @@ export class SessionService extends EventEmitter {
     this.eventStream.on("message.part.delta", this.handleMessagePartDelta);
     this.eventStream.on("message.part.removed", this.handleMessagePartRemoved);
     this.eventStream.on("permission.updated", this.handlePermissionUpdated);
+    this.eventStream.on("permission.asked", this.handlePermissionAsked);
     this.eventStream.on("permission.replied", this.handlePermissionReplied);
     this.eventStream.on("todo.updated", this.handleTodoUpdated);
     this.eventStream.on("server.connected", this.handleServerConnected);
@@ -367,6 +368,7 @@ export class SessionService extends EventEmitter {
     this.eventStream.off("message.part.delta", this.handleMessagePartDelta);
     this.eventStream.off("message.part.removed", this.handleMessagePartRemoved);
     this.eventStream.off("permission.updated", this.handlePermissionUpdated);
+    this.eventStream.off("permission.asked", this.handlePermissionAsked);
     this.eventStream.off("permission.replied", this.handlePermissionReplied);
     this.eventStream.off("todo.updated", this.handleTodoUpdated);
     this.eventStream.off("server.connected", this.handleServerConnected);
@@ -522,6 +524,50 @@ export class SessionService extends EventEmitter {
     if (!msg) return;
     msg.parts = msg.parts.filter((p) => p.id !== partID);
     this.emit("messagePartRemoved", { sessionId: sessionID, messageID, partID });
+  };
+
+  /**
+   * Handle the real `permission.asked` event. The opencode server emits
+   * `permission.asked` (NOT `permission.updated` as the SDK types claim), with
+   * a different payload: callID lives under `tool.callID`, the tool name is the
+   * `permission` field, and there is no `title`. We normalize to the webview
+   * Permission shape so the existing approval card in ToolCallView matches by
+   * callID and renders. handlePermissionUpdated is retained as a fallback.
+   */
+  private handlePermissionAsked = (raw: {
+    id: string;
+    sessionID: string;
+    permission?: string;
+    patterns?: string[];
+    metadata?: { [key: string]: unknown };
+    always?: string[];
+    tool?: { messageID: string; callID: string };
+  }): void => {
+    const sessionId = raw.sessionID;
+    if (!sessionId || !raw.id) return;
+    const tool = raw.permission ?? "tool";
+    const detail =
+      (raw.metadata?.command as string | undefined) ?? raw.patterns?.[0];
+    const permission: Permission = {
+      id: raw.id,
+      type: tool,
+      pattern: raw.patterns,
+      sessionID: sessionId,
+      messageID: raw.tool?.messageID ?? "",
+      callID: raw.tool?.callID,
+      title: detail ? `${tool}: ${detail}` : tool,
+      metadata: raw.metadata ?? {},
+      time: { created: Date.now() },
+    };
+    let list = this.permissionsBySession.get(sessionId);
+    if (!list) {
+      list = [];
+      this.permissionsBySession.set(sessionId, list);
+    }
+    const idx = list.findIndex((p) => p.id === permission.id);
+    if (idx >= 0) list[idx] = permission;
+    else list.push(permission);
+    this.emit("permissionRequest", { sessionId, permission });
   };
 
   // The SDK defines EventPermissionUpdated as { properties: Permission } —

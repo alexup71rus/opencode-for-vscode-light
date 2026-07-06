@@ -239,6 +239,14 @@ export class WebviewPanelManager {
       case "replyPermission": {
         try {
           await this.sessionService.replyPermission(msg.sessionId, msg.permissionId, msg.decision);
+          // Optimistically clear the card from the store. The server's
+          // permission.replied event name is not reliable across versions, so
+          // don't depend on it for removal — the user already acted.
+          this.postMessage({
+            type: "permissionReplied",
+            sessionId: msg.sessionId,
+            permissionID: msg.permissionId,
+          });
         } catch (err) {
           this.reportError(err, "reply to permission");
         }
