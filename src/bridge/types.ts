@@ -91,8 +91,22 @@ export interface ProjectConfig {
     builtIn: boolean;
   }>;
   skills?: Array<{ name: string; description?: string }>;
-  permission?: Record<string, string>;
+  permission?: PermissionConfig;
 }
+
+/**
+ * Engine permission block (config.ts schema). Flat string per tool for most
+ * tools; `bash` additionally allows a granular {pattern: action} object.
+ * See permission/index.ts fromConfig and types.gen.d.ts PermissionConfig.
+ */
+export type PermissionConfig = {
+  edit?: PermissionAction;
+  bash?: PermissionAction | Record<string, PermissionAction>;
+  webfetch?: PermissionAction;
+  doom_loop?: PermissionAction;
+  external_directory?: PermissionAction;
+};
+export type PermissionAction = "allow" | "ask" | "deny";
 
 export interface AttachedContext {
   filePath?: string;

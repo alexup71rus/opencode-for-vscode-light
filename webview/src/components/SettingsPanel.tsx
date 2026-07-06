@@ -36,6 +36,11 @@ export function SettingsPanel(): React.ReactElement | null {
   const reloadServer = useStore((s) => s.reloadServer);
   const permissionNotice = useStore((s) => s.permissionNotice);
   const dismissPermissionNotice = useStore((s) => s.dismissPermissionNotice);
+  // Whether any session is generating — restarting the server would interrupt
+  // it, so we ask for confirmation first.
+  const anyBusy = useStore((s) =>
+    Object.values(s.sessionStatus).some((st) => st.type === "busy" || st.type === "retry"),
+  );
 
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>(settings.enabledTools);
@@ -552,10 +557,18 @@ export function SettingsPanel(): React.ReactElement | null {
                   disabled={!isManaged}
                   title={
                     isManaged
-                      ? "Reload the window so the server re-reads opencode.json"
+                      ? "Restart the server so it re-reads opencode.json"
                       : "Connected to an external server — restart it manually to apply changes"
                   }
-                  onClick={() => reloadServer()}
+                  onClick={() => {
+                    if (anyBusy) {
+                      const ok = window.confirm(
+                        "A generation is in progress. Restarting the server will interrupt it. Restart anyway?",
+                      );
+                      if (!ok) return;
+                    }
+                    reloadServer(anyBusy);
+                  }}
                 >
                   Reload to apply
                 </button>
@@ -570,42 +583,54 @@ export function SettingsPanel(): React.ReactElement | null {
                 {permRules.length === 0 ? (
                   <div className="settings-empty">No explicit rules. Action tools default to <code>ask</code>.</div>
                 ) : (
-                  <div className="perm-table">
-                    {permRules.map((r) => (
-                      <div className="perm-row" key={`${r.source}:${r.tool}:${r.pattern}`}>
-                        <span className="perm-tool">{r.tool}</span>
-                        <span className="perm-pattern" title={r.pattern}>{r.pattern}</span>
-                        <select
-                          className="settings-select perm-action"
-                          value={r.action}
-                          onChange={(e) =>
-                            savePermissionRule({
-                              tool: r.tool,
-                              pattern: r.pattern,
-                              action: e.target.value as PermissionAction,
-                              source: r.source,
-                            })
-                          }
+                  <div className="perm-table" role="table" aria-label="Permission rules">
+                    {permRules.map((r, i) => {
+                      const dead = permissionRules?.effective[i] === false;
+                      return (
+                        <div
+                          className={`perm-row${dead ? " perm-row-dead" : ""}`}
+                          key={`${r.source}:${r.tool}:${r.pattern}`}
+                          role="row"
+                          title={dead ? "Shadowed by a later rule — never wins (remove or reorder)" : undefined}
                         >
-                          <option value="ask">ask</option>
-                          <option value="allow">allow</option>
-                          <option value="deny">deny</option>
-                        </select>
-                        <span
-                          className={`perm-source perm-source-${r.source}`}
-                          title={r.source === "global" ? permissionRules?.globalPath : permissionRules?.projectPath}
-                        >
-                          {r.source}
-                        </span>
-                        <button
-                          className="perm-remove"
-                          title="Remove rule"
-                          onClick={() => removePermissionRule(r.tool, r.pattern, r.source)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
+                          <span className="perm-tool" role="cell">{r.tool}</span>
+                          <span className="perm-pattern" role="cell" title={r.pattern}>{r.pattern}</span>
+                          <select
+                            className="settings-select perm-action"
+                            role="cell"
+                            aria-label={`Action for ${r.tool} ${r.pattern}`}
+                            value={r.action}
+                            onChange={(e) =>
+                              savePermissionRule({
+                                tool: r.tool,
+                                pattern: r.pattern,
+                                action: e.target.value as PermissionAction,
+                                source: r.source,
+                              })
+                            }
+                          >
+                            <option value="ask">ask</option>
+                            <option value="allow">allow</option>
+                            <option value="deny">deny</option>
+                          </select>
+                          <span
+                            className={`perm-source perm-source-${r.source}`}
+                            role="cell"
+                            title={r.source === "global" ? permissionRules?.globalPath : permissionRules?.projectPath}
+                          >
+                            {r.source}
+                          </span>
+                          <button
+                            className="perm-remove"
+                            aria-label={`Remove ${r.tool} ${r.pattern} rule`}
+                            title="Remove rule"
+                            onClick={() => removePermissionRule(r.tool, r.pattern, r.source)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

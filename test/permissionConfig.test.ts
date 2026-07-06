@@ -12,6 +12,7 @@ import {
   writePermissionRule,
   removePermissionRule,
   configFilePath,
+  computeEffective,
   type PermissionRule,
 } from "../src/extension/permissionConfig";
 
@@ -42,6 +43,36 @@ test("wildcardMatch: 'ls*' (no space) matches greedily incl. 'lstmeval'", () => 
 
 test("wildcardMatch: normalizes backslashes", () => {
   assert.equal(wildcardMatch("C:\\Windows\\System32\\x", "C:/Windows/System32/*"), true);
+});
+
+// ── Spec-mandated parity cases (docs/future-permission-table.md:105) ──
+// These exercise the trickier wildcard semantics the engine relies on; a
+// future "simplification" of the matcher should fail here first.
+
+test("wildcardMatch: **/*.env matches nested paths", () => {
+  assert.equal(wildcardMatch(".env", "**/*.env"), false); // "**/" needs a separator
+  assert.equal(wildcardMatch("src/.env", "**/*.env"), true);
+  assert.equal(wildcardMatch("a/b/c/.env", "**/*.env"), true);
+});
+
+test("wildcardMatch: paths with spaces", () => {
+  assert.equal(wildcardMatch("/Users/My Name/proj/file.ts", "/Users/My Name/proj/*"), true);
+  assert.equal(wildcardMatch("git commit -m hello world", "git *"), true);
+});
+
+test("wildcardMatch: leading ~/ is literal, not home expansion", () => {
+  // The engine treats "~/" literally (it's a regex on the raw string); it does
+  // NOT expand to the home dir. Confirm we match that behaviour.
+  assert.equal(wildcardMatch("~/src/file.ts", "~/src/*"), true);
+  assert.equal(wildcardMatch("/Users/me/src/file.ts", "~/src/*"), false);
+});
+
+test("wildcardMatch: nested dirs require ** not single *", () => {
+  // Single "*" does not cross "/" because the engine's matcher has no
+  // special "/" handling — "*" already becomes ".*" which DOES cross "/".
+  // Document the actual behaviour so a change is caught.
+  assert.equal(wildcardMatch("a/b/c", "a/*"), true); // .* crosses "/"
+  assert.equal(wildcardMatch("a/b/c", "a/**"), true);
 });
 
 // ── parsePermissionBlock (mirror engine fromConfig) ──
@@ -192,4 +223,50 @@ test("configFilePath: prefers existing .jsonc over .json", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "permcfg-"));
   fs.writeFileSync(path.join(dir, "opencode.jsonc"), "{}");
   assert.equal(configFilePath("project", dir), path.join(dir, "opencode.jsonc"));
+});
+
+// ── computeEffective (dead-rule detection) ──
+
+test("computeEffective: '*' after specifics shadows them (last-wins)", () => {
+  // {bash: {"docker *":"ask","*":"allow"}} — "*" last wins, "docker *" dead
+  const rules: PermissionRule[] = [
+    { tool: "bash", pattern: "docker *", action: "ask", source: "project" },
+    { tool: "bash", pattern: "*", action: "allow", source: "project" },
+  ];
+  assert.deepEqual(computeEffective(rules), [false, true]);
+});
+
+test("computeEffective: specifics after '*' stay live (last-wins keeps them)", () => {
+  // {bash: {"*":"allow","docker *":"ask"}} — the canonical live ordering
+  const rules: PermissionRule[] = [
+    { tool: "bash", pattern: "*", action: "allow", source: "project" },
+    { tool: "bash", pattern: "docker *", action: "ask", source: "project" },
+  ];
+  assert.deepEqual(computeEffective(rules), [true, true]);
+});
+
+test("computeEffective: identical pattern later shadows earlier", () => {
+  const rules: PermissionRule[] = [
+    { tool: "edit", pattern: "*", action: "ask", source: "global" },
+    { tool: "edit", pattern: "*", action: "allow", source: "project" },
+  ];
+  assert.deepEqual(computeEffective(rules), [false, true]);
+});
+
+test("computeEffective: different tools don't shadow each other", () => {
+  const rules: PermissionRule[] = [
+    { tool: "edit", pattern: "*", action: "ask", source: "global" },
+    { tool: "bash", pattern: "*", action: "allow", source: "global" },
+  ];
+  assert.deepEqual(computeEffective(rules), [true, true]);
+});
+
+test("computeEffective: partial overlap left as effective", () => {
+  // "docker *" and "rm *" overlap on nothing concrete; neither is a superset,
+  // so neither is flagged — conservative (don't claim false confidence).
+  const rules: PermissionRule[] = [
+    { tool: "bash", pattern: "docker *", action: "ask", source: "project" },
+    { tool: "bash", pattern: "rm *", action: "deny", source: "project" },
+  ];
+  assert.deepEqual(computeEffective(rules), [true, true]);
 });

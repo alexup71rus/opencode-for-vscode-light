@@ -61,6 +61,16 @@ export class SessionService extends EventEmitter {
     return this.statusBySession.get(sessionId) ?? { type: "idle" };
   }
 
+  /** True if any session is currently generating (busy/retry). Used to guard
+   *  disruptive actions — e.g. restarting the server — that would interrupt
+   *  an in-flight run. */
+  isAnySessionBusy(): boolean {
+    for (const s of this.statusBySession.values()) {
+      if (s.type === "busy" || s.type === "retry") return true;
+    }
+    return false;
+  }
+
   getTodos(sessionId: string): Todo[] {
     return this.todosBySession.get(sessionId) ?? [];
   }

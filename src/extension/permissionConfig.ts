@@ -97,10 +97,39 @@ export function pickWriteTarget(workspace: string, home: string, hasGitRoot: boo
 
 export interface PermissionRulesSnapshot {
   rules: PermissionRule[];
+  // Parallel to `rules`: effective[i] is false when rule i can never win
+  // because a later rule of the same tool overrides every input it would match.
+  // Conservative — only flags rules fully shadowed by a later "*" or identical
+  // pattern (the common dead-rule case). Partial overlaps are left as true.
+  effective: boolean[];
   writeTarget: WriteScope;
   projectFileExists: boolean;
   globalPath: string;
   projectPath: string;
+}
+
+// A rule is shadowed when a later rule of the same tool matches a superset of
+// its inputs. We approximate "superset" as: later pattern is "*" (matches all)
+// or identical to this one. This mirrors the dead-rule cases the engine's
+// findLast produces (e.g. {bash: {"*":"allow","docker *":"ask"}} — here the
+// "docker *" rule is dead because "*" comes later and wins).
+function ruleIsShadowedByLater(
+  rules: readonly PermissionRule[],
+  index: number,
+): boolean {
+  const here = rules[index];
+  for (let j = index + 1; j < rules.length; j++) {
+    const later = rules[j];
+    if (later.tool !== here.tool) continue;
+    if (later.pattern === "*" || later.pattern === here.pattern) return true;
+  }
+  return false;
+}
+
+/** Compute the `effective` flag for each rule (false = fully shadowed). Exported
+ *  for unit testing without touching the filesystem. */
+export function computeEffective(rules: readonly PermissionRule[]): boolean[] {
+  return rules.map((_, i) => !ruleIsShadowedByLater(rules, i));
 }
 
 function readPermissionBlock(text: string): unknown {
@@ -124,6 +153,7 @@ export function loadPermissionRules(workspace: string, home: string, hasGitRoot:
   const target = pickWriteTarget(workspace, home, hasGitRoot);
   return {
     rules,
+    effective: computeEffective(rules),
     writeTarget: target.scope,
     projectFileExists: fs.existsSync(projectPath),
     globalPath,

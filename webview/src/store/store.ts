@@ -156,7 +156,7 @@ export interface AppState {
   requestPermissionRules: () => void;
   savePermissionRule: (rule: PermissionRule) => void;
   removePermissionRule: (tool: PermissionTool, pattern: string, source: "global" | "project") => void;
-  reloadServer: () => void;
+  reloadServer: (force?: boolean) => void;
   dismissPermissionNotice: () => void;
   setSidebarWidth: (w: number, persist?: boolean) => void;
   setRightWidth: (w: number, persist?: boolean) => void;
@@ -755,6 +755,6 @@ export const useStore = create<AppState>((set, get) => ({
   savePermissionRule: (rule) => postMessage({ type: "savePermissionRule", rule }),
   removePermissionRule: (tool, pattern, source) =>
     postMessage({ type: "removePermissionRule", tool, pattern, source }),
-  reloadServer: () => postMessage({ type: "reloadServer" }),
+  reloadServer: (force?: boolean) => postMessage({ type: "reloadServer", force }),
   dismissPermissionNotice: () => set({ permissionNotice: null }),
 }));

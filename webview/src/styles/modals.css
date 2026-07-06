@@ -408,6 +408,14 @@
   background: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.08));
 }
 
+/* A rule fully shadowed by a later one (last-match-wins) — dim it so the user
+   sees it's dead without having to reason about precedence themselves. */
+.perm-row-dead {
+  opacity: 0.45;
+  text-decoration: line-through;
+  text-decoration-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
 .perm-tool {
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 12px;

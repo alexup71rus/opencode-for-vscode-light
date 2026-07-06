@@ -49,12 +49,23 @@ export class WebviewPanelManager {
   private panel: vscode.WebviewPanel | undefined;
   private readonly listeners: ServiceListenerBinding[] = [];
   private readonly disposables: vscode.Disposable[] = [];
+  // Permission-config watchers live separately from `disposables` (which are
+  // only cleared on full manager dispose). They are recreated on every panel
+  // show(), so they MUST be torn down on panel close — otherwise each
+  // close/reopen cycle leaks 2 native watchers + 6 callbacks and compounds
+  // duplicate re-broadcasts/toasts.
+  private permissionWatchers: vscode.Disposable[] = [];
   private isReady = false;
   private currentConfig: ProjectConfig | null = null;
   private currentSkills: SkillInfo[] = [];
   private currentMcpStatus: Record<string, McpServerStatus> = {};
   private currentLspStatus: LspStatusInfo[] = [];
-  private readonly pendingSelfWrites = new Set<string>();
+  // Consume-once self-write guard: each own write to a config path increments a
+  // counter, and each incoming watcher event for that path decrements it. This
+  // is a true per-event mutex rather than a time-based heuristic — the watcher
+  // event for our own write is always suppressed exactly once, regardless of
+  // how long the FS layer takes to deliver it (slow/network/WSL/macOS-load).
+  private readonly pendingSelfWrites = new Map<string, number>();
   private permissionReloadTimer: NodeJS.Timeout | undefined;
 
   constructor(
@@ -70,6 +81,10 @@ export class WebviewPanelManager {
     private readonly connection: ConnectionInfo,
     private readonly diffProvider: DiffDocumentProvider,
     private readonly reconnect: () => Promise<boolean>,
+    // Force-restart the managed server (kill + respawn) so a freshly-written
+    // config file is re-read. Returns false for external servers (nothing to
+    // restart — the user must do it manually). May reject on respawn failure.
+    private readonly restartManagedServer: () => Promise<boolean>,
   ) {
     this.loadConfig();
   }
@@ -119,6 +134,7 @@ export class WebviewPanelManager {
     this.panel.onDidDispose(
       () => {
         this.detachServiceListeners();
+        this.disposePermissionWatchers();
         this.panel = undefined;
         this.isReady = false;
       },
@@ -138,10 +154,7 @@ export class WebviewPanelManager {
 
   dispose(): void {
     this.detachServiceListeners();
-    if (this.permissionReloadTimer) {
-      clearTimeout(this.permissionReloadTimer);
-      this.permissionReloadTimer = undefined;
-    }
+    this.disposePermissionWatchers();
     for (const d of this.disposables) {
       d.dispose();
     }
@@ -532,9 +545,43 @@ export class WebviewPanelManager {
       }
       case "reloadServer": {
         try {
-          await vscode.commands.executeCommand("workbench.action.reloadWindow");
+          if (!this.connection.isManaged) {
+            this.postMessage({
+              type: "permissionNotice",
+              kind: "externalChange",
+              message:
+                "Connected to an external server — restart it manually to apply permission changes.",
+            });
+            break;
+          }
+          // Guard against interrupting an in-flight generation: restarting the
+          // server tears down SSE and aborts the run. The webview is expected
+          // to confirm first, but enforce it host-side too (defense in depth).
+          if (this.sessionService.isAnySessionBusy() && !msg.force) {
+            this.postMessage({
+              type: "permissionNotice",
+              kind: "externalChange",
+              message:
+                "A generation is in progress. Click again to restart anyway (the run will be interrupted).",
+            });
+            break;
+          }
+          // Restart the managed server (kill+respawn) so the instance re-reads
+          // the config. reloadWindow would also work but tears down the whole
+          // UI; a targeted server restart is lighter and keeps the panel open.
+          const restarted = await this.restartManagedServer();
+          if (!restarted) {
+            this.postMessage({
+              type: "permissionNotice",
+              kind: "externalChange",
+              message: "Server restart was not performed — no changes applied.",
+            });
+          } else {
+            // Server came back fresh: re-broadcast rules and clear the notice.
+            this.pushPermissionRules();
+          }
         } catch (err) {
-          this.reportError(err, "reload window");
+          this.reportError(err, "reload server");
         }
         break;
       }
@@ -546,9 +593,24 @@ export class WebviewPanelManager {
 
   private persistAlwaysAllow(perm: Permission): void {
     const tool = perm.type;
-    if (!isPermissionTool(tool)) return;
+    // Tools outside the configurable schema (task/read/grep/...) are approved
+    // in-memory for the session but cannot be persisted to a config rule.
+    if (!isPermissionTool(tool)) {
+      void vscode.window.showInformationMessage(
+        `OCVS: "Always allow" for ${tool} applies to this session only — it can't be saved to the config file.`,
+      );
+      return;
+    }
     const patterns = (perm as Permission & { always?: string[] }).always;
-    if (!patterns?.length) return;
+    if (!patterns?.length) {
+      // No specific patterns: the in-memory "always" covers the session; there
+      // is nothing durable to write. Tell the user so they know it won't carry
+      // over to the next launch.
+      void vscode.window.showInformationMessage(
+        `OCVS: "Always allow" for ${tool} applies to this session only.`,
+      );
+      return;
+    }
     const workspace = this.client.workdirPath;
     const target = pickWriteTarget(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
     for (const pattern of patterns) {
@@ -568,25 +630,58 @@ export class WebviewPanelManager {
   }
 
   private setupPermissionConfigWatcher(): void {
+    // Idempotent: if a previous show() left watchers installed (e.g. reopen
+    // before close finished), reuse them instead of stacking new ones.
+    if (this.permissionWatchers.length) return;
     const folders = [globalConfigDir(), this.client.workdirPath];
     for (const folder of folders) {
       const pattern = new vscode.RelativePattern(vscode.Uri.file(folder), "opencode.{json,jsonc}");
       const watcher = vscode.workspace.createFileSystemWatcher(pattern);
       const handler = (uri: vscode.Uri) => this.onPermissionConfigChanged(uri.fsPath);
-      watcher.onDidChange(handler, undefined, this.disposables);
-      watcher.onDidCreate(handler, undefined, this.disposables);
-      watcher.onDidDelete(handler, undefined, this.disposables);
-      this.disposables.push(watcher);
+      watcher.onDidChange(handler, undefined, this.permissionWatchers);
+      watcher.onDidCreate(handler, undefined, this.permissionWatchers);
+      watcher.onDidDelete(handler, undefined, this.permissionWatchers);
+      this.permissionWatchers.push(watcher);
     }
   }
 
+  private disposePermissionWatchers(): void {
+    for (const w of this.permissionWatchers) w.dispose();
+    this.permissionWatchers = [];
+    if (this.permissionReloadTimer) {
+      clearTimeout(this.permissionReloadTimer);
+      this.permissionReloadTimer = undefined;
+    }
+    // Drop any unconsumed self-write counters so a stale count can't suppress
+    // the next genuine external change after the panel reopens.
+    this.pendingSelfWrites.clear();
+  }
+
+  // Consume-once: each own write increments a per-path counter; the first
+  // matching watcher event decrements it. A real external edit arrives when
+  // the counter is 0 and is therefore never suppressed. Unlike a timeout,
+  // this is correct regardless of FS event delivery latency.
   private markSelfWrite(filePath: string): void {
-    this.pendingSelfWrites.add(filePath);
-    setTimeout(() => this.pendingSelfWrites.delete(filePath), 500);
+    this.pendingSelfWrites.set(filePath, (this.pendingSelfWrites.get(filePath) ?? 0) + 1);
+    // Safety net: if a watcher event never arrives (file on an unwatched path,
+    // watcher disposed mid-write), clear the slot after a generous window so
+    // the counter can't wedge permanently.
+    setTimeout(() => {
+      const remaining = (this.pendingSelfWrites.get(filePath) ?? 0) - 1;
+      if (remaining <= 0) this.pendingSelfWrites.delete(filePath);
+      else this.pendingSelfWrites.set(filePath, remaining);
+    }, 2000);
   }
 
   private onPermissionConfigChanged(filePath: string): void {
-    if (this.pendingSelfWrites.has(filePath)) return;
+    // Consume one self-write slot per incoming event. FS coalescing means one
+    // write may surface as several events; decrement-but-don't-go-negative so
+    // a burst of N events for M writes still settles to 0.
+    const pending = this.pendingSelfWrites.get(filePath);
+    if (pending) {
+      this.pendingSelfWrites.set(filePath, pending - 1);
+      return;
+    }
     if (this.permissionReloadTimer) clearTimeout(this.permissionReloadTimer);
     this.permissionReloadTimer = setTimeout(() => {
       this.permissionReloadTimer = undefined;
@@ -595,7 +690,7 @@ export class WebviewPanelManager {
         this.postMessage({
           type: "permissionNotice",
           kind: "externalChange",
-          message: "Config changed externally — reload the window to apply.",
+          message: "Config changed externally — reload the server to apply.",
         });
       } catch (err) {
         this.reportError(err, "reload permission rules after external change");
@@ -999,7 +1094,29 @@ function transformConfig(raw: Record<string, unknown>): ProjectConfig {
   if (typeof raw.mode === "string") config.mode = raw.mode;
   if (typeof raw.username === "string") config.username = raw.username;
   if (raw.permission && typeof raw.permission === "object") {
-    config.permission = raw.permission as Record<string, string>;
+    // Keep only schema-valid keys with valid actions; bash may be granular
+    // {pattern: action}. Drop anything else so the webview never renders a
+    // shape the engine would strip.
+    const src = raw.permission as Record<string, unknown>;
+    const out: NonNullable<ProjectConfig["permission"]> = {};
+    const isAction = (v: unknown): v is "allow" | "ask" | "deny" =>
+      v === "allow" || v === "ask" || v === "deny";
+    const flatTools = ["edit", "webfetch", "doom_loop", "external_directory"] as const;
+    for (const t of flatTools) {
+      const v = src[t];
+      if (typeof v === "string" && isAction(v)) out[t] = v;
+    }
+    const bashV = src.bash;
+    if (typeof bashV === "string" && isAction(bashV)) {
+      out.bash = bashV;
+    } else if (bashV && typeof bashV === "object") {
+      const granular: Record<string, "allow" | "ask" | "deny"> = {};
+      for (const [pat, act] of Object.entries(bashV as Record<string, unknown>)) {
+        if (isAction(act)) granular[pat] = act;
+      }
+      if (Object.keys(granular).length) out.bash = granular;
+    }
+    config.permission = out;
   }
   if (raw.agent && typeof raw.agent === "object") {
     const agents: ProjectConfig["agents"] = [];

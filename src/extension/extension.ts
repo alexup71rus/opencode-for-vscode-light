@@ -153,6 +153,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     };
 
+    // Force a fresh managed server so a written config file is re-read. dispose()
+    // kills the child and nulls info; ensureServer() then respawns. For an
+    // external server there is nothing to restart — returns false so the caller
+    // can tell the user to restart manually.
+    const restartManagedServer = async (): Promise<boolean> => {
+      if (!serverInfo.isManaged) return false;
+      try {
+        log("restarting managed server to apply config changes");
+        await serverManager!.dispose();
+        const info = await serverManager!.ensureServer(workdir);
+        client.updateServer(info);
+        await eventStream!.restart();
+        // The new instance has empty in-session state — refresh what we cache.
+        await Promise.all([
+          sessionService!.refreshSessions(),
+          modelService!.refresh(),
+          agentService!.refresh().catch(() => undefined),
+        ]);
+        log(`server restarted: ${info.url}`);
+        return true;
+      } catch (err) {
+        log(`server restart failed: ${err instanceof Error ? err.message : String(err)}`);
+        throw err;
+      }
+    };
+
     const panelManager = new WebviewPanelManager(
       context,
       sessionService,
@@ -170,6 +196,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
       diffProvider,
       reconnect,
+      restartManagedServer,
     );
 
     context.subscriptions.push(panelManager);

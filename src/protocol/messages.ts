@@ -104,4 +104,4 @@ export type WebviewToExtension =
   | { type: "getPermissionRules" }
   | { type: "savePermissionRule"; rule: PermissionRule }
   | { type: "removePermissionRule"; tool: PermissionTool; pattern: string; source: "global" | "project" }
-  | { type: "reloadServer" };
+  | { type: "reloadServer"; force?: boolean };

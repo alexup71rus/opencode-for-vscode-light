@@ -326,8 +326,23 @@ export interface PermissionRule {
   source: "global" | "project";
 }
 
+/**
+ * Engine permission block (config.ts schema). Flat string per tool; `bash`
+ * additionally allows a granular {pattern: action} object.
+ */
+export type PermissionConfig = {
+  edit?: PermissionAction;
+  bash?: PermissionAction | Record<string, PermissionAction>;
+  webfetch?: PermissionAction;
+  doom_loop?: PermissionAction;
+  external_directory?: PermissionAction;
+};
+
 export interface PermissionRulesSnapshot {
   rules: PermissionRule[];
+  // Parallel to rules: false = fully shadowed by a later rule (dead under
+  // last-match-wins), rendered dimmed in the table.
+  effective: boolean[];
   writeTarget: "global" | "project";
   projectFileExists: boolean;
   globalPath: string;
@@ -403,7 +418,7 @@ export interface ProjectConfig {
   username?: string;
   agents?: Array<{ name: string; description?: string; mode: string; builtIn: boolean }>;
   skills?: Array<{ name: string; description?: string }>;
-  permission?: Record<string, string>;
+  permission?: PermissionConfig;
 }
 
 export interface AttachedContext {
@@ -474,4 +489,4 @@ export type WebviewToExtension =
   | { type: "getPermissionRules" }
   | { type: "savePermissionRule"; rule: PermissionRule }
   | { type: "removePermissionRule"; tool: PermissionTool; pattern: string; source: "global" | "project" }
-  | { type: "reloadServer" };
+  | { type: "reloadServer"; force?: boolean };
