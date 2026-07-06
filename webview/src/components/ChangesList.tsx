@@ -17,6 +17,7 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
   const baseline = useStore((s) => s.changesBaseline[sessionId]);
   const applyChanges = useStore((s) => s.applyChanges);
   const openFileDiffModal = useStore((s) => s.openFileDiffModal);
+  const openAllFilesDiffModal = useStore((s) => s.openAllFilesDiffModal);
   const fileExists = useStore((s) => s.fileExists);
   const checkFilesExist = useStore((s) => s.checkFilesExist);
   const [open, setOpen] = useState(true);
@@ -81,13 +82,22 @@ export function ChangesList({ sessionId }: ChangesListProps): React.ReactElement
           )}
         </button>
         {open && rows.length > 0 && (
-          <button
-            className="changes-apply-btn"
-            onClick={() => setConfirmOpen(true)}
-            title="Mark current changes as applied and clear the list"
-          >
-            Apply
-          </button>
+          <div className="changes-head-actions">
+            <button
+              className="changes-head-btn"
+              title="Preview all diffs in a modal"
+              onClick={() => openAllFilesDiffModal(rows)}
+            >
+              View all
+            </button>
+            <button
+              className="changes-apply-btn"
+              onClick={() => setConfirmOpen(true)}
+              title="Mark current changes as applied and clear the list"
+            >
+              Apply
+            </button>
+          </div>
         )}
       </div>
       {open && (

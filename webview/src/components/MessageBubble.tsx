@@ -611,9 +611,20 @@ export const MessageBubble = memo(function MessageBubble({
           )}
           {!isUser && changedFiles.length > 0 && (
             <div className="changed-files">
-              <span className="changed-files-label">
-                {changedFiles.length === 1 ? "Changed file" : `${changedFiles.length} changed files`}
-              </span>
+              <div className="changed-files-label-row">
+                <span className="changed-files-label">
+                  {changedFiles.length === 1 ? "Changed file" : `${changedFiles.length} changed files`}
+                </span>
+                {changedFiles.length >= 2 && (
+                  <button
+                    className="changed-files-view-all"
+                    title="Preview all diffs in a modal"
+                    onClick={() => useStore.getState().openAllFilesDiffModal(changedFiles)}
+                  >
+                    View all
+                  </button>
+                )}
+              </div>
               <div className="changed-files-chips">
                 {changedFiles.map((cf) => (
                   <div

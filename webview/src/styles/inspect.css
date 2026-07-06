@@ -65,29 +65,78 @@
   overflow-y: auto;
 }
 
+/* The whole header row is one visual bar: the collapse toggle (caret+title+
+   count) fills the left, the action buttons sit at the right inside the same
+   padded, hover-highlighted strip — so the buttons read as part of the
+   header, not a detached toolbar next to it. */
 .changes-head {
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  transition: background var(--opencode-ease);
+}
+
+.changes-head:hover {
+  background: var(--vscode-list-hoverBackground);
 }
 
 .changes-head .panel-header {
   flex: 1 1 auto;
   width: auto;
+  /* Padding + hover live on the .changes-head row now, so the toggle itself
+     is bare — clicking it still works, it just doesn't double-highlight. */
+  padding: 0;
+  background: transparent;
 }
 
-.changes-apply-btn {
+.changes-head .panel-header:hover {
+  background: transparent;
+}
+
+/* Action buttons sit at the right edge of the header strip. */
+.changes-head-actions {
   flex: 0 0 auto;
-  align-self: center;
-  margin-right: 6px;
-  padding: 2px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Secondary (quiet) header button — "View all". Bordered + muted, like the
+   tool-call "Copy" / "Open diff" affordances. */
+.changes-head-btn {
+  background: transparent;
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  font-family: inherit;
+  padding: 1px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.75;
+  line-height: 1.4;
+  transition: opacity var(--opencode-ease), color var(--opencode-ease), background var(--opencode-ease);
+}
+
+.changes-head-btn:hover {
+  opacity: 1;
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground);
+}
+
+/* "Apply" is the primary action — filled (not stroked) so it stands out from
+   the quiet "View all" button. Same small size for visual rhythm. */
+.changes-apply-btn {
   background: var(--vscode-button-secondaryBackground, transparent);
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
-  border-radius: var(--opencode-radius);
-  font-size: 11px;
-  line-height: 1.4;
+  border: 1px solid var(--vscode-button-border, var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent)));
+  font-size: 10px;
+  font-family: inherit;
+  padding: 1px 8px;
+  border-radius: 3px;
   cursor: pointer;
-  opacity: 0.85;
+  opacity: 0.95;
+  line-height: 1.4;
   transition: background var(--opencode-ease), opacity var(--opencode-ease);
 }
 
@@ -225,6 +274,37 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.6;
+}
+
+.changed-files-label-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Mini "View all" button next to the "N changed files" label in a message
+   footer. Mirrors the tool-call "Copy"/"Open diff" affordance — small,
+   bordered, muted until hovered — so it reads as a quiet secondary action
+   rather than a loud CTA next to the chips. */
+.changed-files-view-all {
+  background: transparent;
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  font-family: inherit;
+  padding: 1px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.7;
+  line-height: 1.4;
+  transition: opacity var(--opencode-ease), color var(--opencode-ease), background var(--opencode-ease);
+}
+
+.changed-files-view-all:hover {
+  opacity: 1;
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground);
 }
 
 .changed-files-chips {

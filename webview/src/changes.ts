@@ -10,6 +10,13 @@ export interface FileChange {
   filePath: string;
   edits: EditPatch[];
   isNewFile: boolean;
+  /**
+   * For `write` tool calls (new file / full overwrite): the content the agent
+   * wrote. Kept separately from `edits` so the host-side diff path (which
+   * short-circuits on `isNewFile`) is unaffected, while the all-files modal
+   * can still render the new-file diff without loading the file from disk.
+   */
+  newContent?: string;
   /** rough line counts for display */
   additions: number;
   deletions: number;
@@ -75,6 +82,7 @@ export function extractFileChanges(messages: MessageWithParts[], afterMessageId?
         // write — new file (or full overwrite). Treat as all-added.
         entry.isNewFile = true;
         const content = asString(input.content) ?? "";
+        entry.newContent = content;
         entry.additions += content ? content.split("\n").length : 0;
       }
     }

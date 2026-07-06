@@ -704,6 +704,159 @@
   color: var(--vscode-errorForeground, var(--vscode-charts-red, #f85149));
 }
 
+/* ===== All-files diff modal (collapsible per-file accordion) ===== */
+
+.all-diff-modal {
+  max-width: 760px;
+  /* Pin to the top edge (like the settings panel) instead of vertically
+     centering, so the modal doesn't jump as accordion bodies expand/collapse. */
+  align-self: flex-start;
+  margin-top: 32px;
+  max-height: calc(100vh - 64px);
+}
+
+.all-diff-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.all-diff-totals {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.all-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.all-diff-body {
+  gap: 8px;
+  padding: 10px;
+  /* This element is the modal's single scroll container (the hunks below have
+     no max-height of their own). For a flex column child with overflow-y:auto
+     to actually scroll, it needs min-height:0 so it can shrink below its
+     content, and its children must not shrink either (see .diff-accordion). */
+  min-height: 0;
+}
+
+.diff-accordion {
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  border-radius: var(--opencode-radius);
+  overflow: hidden;
+  background: var(--vscode-input-background, transparent);
+  /* Keep natural height — never shrink — so the modal body scrolls instead of
+     squashing the diff content. */
+  flex-shrink: 0;
+}
+
+.diff-accordion + .diff-accordion {
+  margin-top: 0;
+}
+
+.diff-accordion-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--opencode-ease);
+}
+
+.diff-accordion-head:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.diff-accordion-head:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
+  outline-offset: -1px;
+}
+
+.diff-accordion-caret {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.diff-accordion-head .change-status {
+  flex: 0 0 8px;
+}
+
+.diff-accordion-icon {
+  flex: 0 0 auto;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.diff-accordion-name {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.diff-accordion-base {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diff-accordion-dir {
+  font-size: 11px;
+  opacity: 0.55;
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diff-accordion-delta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-accordion-open {
+  flex: 0 0 auto;
+}
+
+.diff-accordion-body {
+  border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--vscode-textCodeBlock-background, transparent);
+}
+
+/* Each edit hunk renders in its own block; the modal body is the single
+   scroll container, so hunks must never cap their own height. */
+.diff-accordion-pre {
+  max-height: none;
+  overflow: visible;
+}
+
+.diff-accordion-pre + .diff-accordion-pre {
+  margin-top: 0;
+}
+
+.diff-accordion-empty {
+  padding: 6px 4px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 /* Restructured change row: main action + modal chip (no nested buttons). */
 .change-main {
   flex: 1 1 auto;

@@ -22,6 +22,7 @@ import type {
   QuestionRequest,
 } from "../api/types";
 import { postMessage } from "../api/vscodeApi";
+import type { FileChange } from "../changes";
 
 export interface Settings {
   systemPrompt: string;
@@ -118,6 +119,7 @@ export interface AppState {
     | (DiffModalBase & { status: "loading" })
     | (DiffModalBase & { status: "ready"; label: string; before: string; after: string })
     | (DiffModalBase & { status: "error"; message: string });
+  allFilesDiffModal: { changes: FileChange[] } | null;
   fileExists: Record<string, boolean>;
   drafts: Record<string, string>;
   setDraft: (sessionId: string, text: string) => void;
@@ -130,6 +132,8 @@ export interface AppState {
   applyChanges: (sessionId: string, messageId: string) => void;
   openFileDiffModal: (filePath: string, edits: { oldStr: string; newStr: string }[], isNewFile: boolean) => void;
   closeFileDiffModal: () => void;
+  openAllFilesDiffModal: (changes: FileChange[]) => void;
+  closeAllFilesDiffModal: () => void;
   checkFilesExist: (paths: string[]) => void;
 
   handleMessage: (msg: ExtensionToWebview) => void;
@@ -240,6 +244,7 @@ const initialState = {
   sessionStatus: {} as Record<string, SessionStatusInfo>,
   queuedMessages: [] as QueuedMessage[],
   diffModal: null as AppState["diffModal"],
+  allFilesDiffModal: null as AppState["allFilesDiffModal"],
   fileExists: {} as Record<string, boolean>,
   drafts: {} as Record<string, string>,
   changesBaseline: {} as Record<string, string>,
@@ -355,6 +360,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   closeFileDiffModal: () => set({ diffModal: null }),
+  openAllFilesDiffModal: (changes) => set({ allFilesDiffModal: { changes } }),
+  closeAllFilesDiffModal: () => set({ allFilesDiffModal: null }),
   checkFilesExist: (paths) => {
     if (paths.length === 0) return;
     postMessage({ type: "checkFilesExist", paths });

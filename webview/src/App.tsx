@@ -12,6 +12,7 @@ import { InspectPanel } from "./components/InspectPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { HelpModal } from "./components/HelpModal";
 import { FileDiffModal } from "./components/FileDiffModal";
+import { AllFilesDiffModal } from "./components/AllFilesDiffModal";
 import { Logo } from "./components/Logo";
 import { RecentSessionsPanel } from "./components/RecentSessionsPanel";
 
@@ -174,6 +175,10 @@ export default function App(): React.ReactElement {
         }
         if (useStore.getState().diffModal) {
           useStore.getState().closeFileDiffModal();
+          return;
+        }
+        if (useStore.getState().allFilesDiffModal) {
+          useStore.getState().closeAllFilesDiffModal();
           return;
         }
         const active = useStore.getState().activeSessionId;
@@ -450,6 +455,7 @@ export default function App(): React.ReactElement {
       <SettingsPanel />
       <HelpModal />
       <FileDiffModal />
+      <AllFilesDiffModal />
     </div>
   );
 }
