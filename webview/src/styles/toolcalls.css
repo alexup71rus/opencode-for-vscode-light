@@ -132,6 +132,13 @@
   gap: 8px;
 }
 
+/* Collapsed tool call that still shows its output. Tighter padding than the
+   expanded detail block (no header above it), and keep the border so it reads
+   as part of the tool row. */
+.tool-output-inline {
+  padding: 6px 10px;
+}
+
 .tool-section-label {
   font-size: 10px;
   text-transform: uppercase;

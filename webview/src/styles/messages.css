@@ -618,8 +618,35 @@
 .reasoning-text {
   white-space: pre-wrap;
   font-size: 12px;
-  opacity: 0.8;
+  /* Dim grey-blue so it reads as "background thought", not primary text. */
+  color: var(--vscode-descriptionForeground, currentColor);
+  opacity: 0.72;
   padding: 4px 0;
+}
+
+/* Collapsed preview: clamp to ~3 lines and fade the bottom edge so it's clear
+   the reasoning is truncated, not finished. Click the header to fully expand. */
+.reasoning-collapsed {
+  max-height: 4.2em;            /* ~3 lines at 12px / 1.4 */
+  overflow: hidden;
+  position: relative;
+  cursor: default;
+  opacity: 0.5;
+}
+
+.reasoning-collapsed::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1.4em;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--vscode-editor-background, #1e1e1e)
+  );
+  pointer-events: none;
 }
 
 .part-divider {

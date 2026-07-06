@@ -73,7 +73,7 @@
     "watch:webview": "vite build --watch",
     "lint": "tsc --noEmit -p tsconfig.extension.json && tsc --noEmit -p tsconfig.webview.json",
     "lint:test": "tsc --noEmit -p tsconfig.test.json",
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "node --import tsx --import ./test/register-vscode.cjs --test test/*.test.ts",
     "package:vsix": "vsce package --no-dependencies",
     "dev:install": "bash scripts/dev-install.sh",
     "bump": "bash scripts/bump-version.sh"

@@ -306,7 +306,12 @@ function ReasoningBlock({ part }: { part: Extract<Part, { type: "reasoning" }> }
         <span className="reasoning-caret">{open ? "▾" : "▸"}</span>
         <span className="reasoning-label">{streaming ? "Thinking…" : "Thought process"}</span>
       </button>
-      {open && <div className="reasoning-text">{part.text}</div>}
+      <div
+        className={`reasoning-text${open ? "" : " reasoning-collapsed"}`}
+        title={open ? undefined : "Click header to expand"}
+      >
+        {part.text}
+      </div>
     </div>
   );
 }

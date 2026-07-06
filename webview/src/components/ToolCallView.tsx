@@ -352,6 +352,14 @@ export function ToolCallView({ sessionId, part, childSessionId }: ToolCallViewPr
                   )}
         </div>
       )}
+      {/* The tool's result is always visible, even when collapsed — only the
+          input/header/copy chrome is hidden. This is what the user actually
+          needs to see (command output, file contents, errors). */}
+      {!expanded && output && (
+        <div className="tool-call-detail tool-output-inline">
+          <pre className={`tool-pre ${status === "error" ? "tool-pre-error" : ""}`}>{output}</pre>
+        </div>
+      )}
     </div>
   );
 }
