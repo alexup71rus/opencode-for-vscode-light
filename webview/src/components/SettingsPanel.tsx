@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 import { modelKey } from "../models";
-import type { ModelSelection } from "../api/types";
+import type { ModelSelection, PermissionAction, PermissionTool } from "../api/types";
 
-type Tab = "general" | "models" | "tools" | "connection";
+type Tab = "general" | "models" | "tools" | "permissions" | "connection";
 
 export function SettingsPanel(): React.ReactElement | null {
   const open = useStore((s) => s.settingsOpen);
@@ -29,6 +29,12 @@ export function SettingsPanel(): React.ReactElement | null {
   const toggleProviderHidden = useStore((s) => s.toggleProviderHidden);
   const config = useStore((s) => s.config);
 
+  const permissionRules = useStore((s) => s.permissionRules);
+  const requestPermissionRules = useStore((s) => s.requestPermissionRules);
+  const savePermissionRule = useStore((s) => s.savePermissionRule);
+  const removePermissionRule = useStore((s) => s.removePermissionRule);
+  const reloadServer = useStore((s) => s.reloadServer);
+
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>(settings.enabledTools);
   const [toolFilter, setToolFilter] = useState("");
@@ -42,6 +48,9 @@ export function SettingsPanel(): React.ReactElement | null {
   const [draftSoundOnComplete, setDraftSoundOnComplete] = useState(settings.soundOnComplete);
   const [draftSendOnEnter, setDraftSendOnEnter] = useState(settings.sendOnEnter);
   const [tab, setTab] = useState<Tab>("general");
+  const [newTool, setNewTool] = useState<PermissionTool>("bash");
+  const [newPattern, setNewPattern] = useState("*");
+  const [newAction, setNewAction] = useState<PermissionAction>("ask");
 
   useEffect(() => {
     if (open) {
@@ -59,6 +68,14 @@ export function SettingsPanel(): React.ReactElement | null {
       setDraftSendOnEnter(settings.sendOnEnter);
     }
   }, [open, settings.systemPrompt, settings.enabledTools, settings.autoApprove, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
+
+  useEffect(() => {
+    if (open && tab === "permissions") requestPermissionRules();
+  }, [open, tab, requestPermissionRules]);
+
+  useEffect(() => {
+    if (newTool !== "bash") setNewPattern("*");
+  }, [newTool]);
 
   useEffect(() => {
     if (!open) return;
@@ -168,10 +185,31 @@ export function SettingsPanel(): React.ReactElement | null {
     0,
   );
 
+  const PERMISSION_TOOLS: PermissionTool[] = ["edit", "bash", "webfetch", "doom_loop", "external_directory"];
+  const permRules = permissionRules?.rules ?? [];
+  const permWritePath = permissionRules
+    ? permissionRules.writeTarget === "project"
+      ? permissionRules.projectPath
+      : permissionRules.globalPath
+    : "";
+
+  const addRule = () => {
+    if (!permissionRules) return;
+    const source = permissionRules.writeTarget;
+    const pattern = newTool === "bash" ? (newPattern.trim() || "*") : "*";
+    if (source === "project" && !permissionRules.projectFileExists) {
+      if (!window.confirm(`Create ${permissionRules.projectPath} in the project?`)) return;
+    } else if (source === "global") {
+      if (!window.confirm(`Write to ${permissionRules.globalPath}?\nThis affects all projects on this machine.`)) return;
+    }
+    savePermissionRule({ tool: newTool, pattern, action: newAction, source });
+  };
+
   const TABS: { id: Tab; label: string }[] = [
     { id: "general", label: "General" },
     { id: "models", label: "Models" },
     { id: "tools", label: "Tools" },
+    { id: "permissions", label: "Permissions" },
     { id: "connection", label: "Connection" },
   ];
 
@@ -485,6 +523,119 @@ export function SettingsPanel(): React.ReactElement | null {
                     </div>
                   </>
                 )}
+              </div>
+            </section>
+          )}
+
+          {tab === "permissions" && (
+            <section className="settings-section">
+              <div className="settings-label-row">
+                <div className="settings-section-title">Permission rules</div>
+                <button
+                  className="btn btn-sm"
+                  disabled={!isManaged}
+                  title={
+                    isManaged
+                      ? "Reload the window so the server re-reads opencode.json"
+                      : "Connected to an external server — restart it manually to apply changes"
+                  }
+                  onClick={() => reloadServer()}
+                >
+                  Reload to apply
+                </button>
+              </div>
+              <span className="settings-hint">
+                Rules the engine consults when a tool runs. <code>ask</code> prompts you,{" "}
+                <code>allow</code> skips the prompt, <code>deny</code> blocks. New rules save to{" "}
+                <code className="perm-path">{permWritePath || "—"}</code>.
+              </span>
+
+              <div className="settings-field">
+                {permRules.length === 0 ? (
+                  <div className="settings-empty">No explicit rules. Action tools default to <code>ask</code>.</div>
+                ) : (
+                  <div className="perm-table">
+                    {permRules.map((r) => (
+                      <div className="perm-row" key={`${r.source}:${r.tool}:${r.pattern}`}>
+                        <span className="perm-tool">{r.tool}</span>
+                        <span className="perm-pattern" title={r.pattern}>{r.pattern}</span>
+                        <select
+                          className="settings-select perm-action"
+                          value={r.action}
+                          onChange={(e) =>
+                            savePermissionRule({
+                              tool: r.tool,
+                              pattern: r.pattern,
+                              action: e.target.value as PermissionAction,
+                              source: r.source,
+                            })
+                          }
+                        >
+                          <option value="ask">ask</option>
+                          <option value="allow">allow</option>
+                          <option value="deny">deny</option>
+                        </select>
+                        <span
+                          className={`perm-source perm-source-${r.source}`}
+                          title={r.source === "global" ? permissionRules?.globalPath : permissionRules?.projectPath}
+                        >
+                          {r.source}
+                        </span>
+                        <button
+                          className="perm-remove"
+                          title="Remove rule"
+                          onClick={() => removePermissionRule(r.tool, r.pattern, r.source)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="settings-field perm-add">
+                <div className="settings-label-row">
+                  <label className="settings-label">Add rule</label>
+                </div>
+                <div className="perm-add-row">
+                  <select
+                    className="settings-select"
+                    value={newTool}
+                    onChange={(e) => setNewTool(e.target.value as PermissionTool)}
+                  >
+                    {PERMISSION_TOOLS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="settings-tool-filter perm-pattern-input"
+                    type="text"
+                    placeholder={newTool === "bash" ? "e.g. docker *" : "(whole tool)"}
+                    value={newPattern}
+                    disabled={newTool !== "bash"}
+                    onChange={(e) => setNewPattern(e.target.value)}
+                  />
+                  <select
+                    className="settings-select"
+                    value={newAction}
+                    onChange={(e) => setNewAction(e.target.value as PermissionAction)}
+                  >
+                    <option value="ask">ask</option>
+                    <option value="allow">allow</option>
+                    <option value="deny">deny</option>
+                  </select>
+                  <button className="btn btn-primary btn-sm" onClick={addRule}>
+                    Add
+                  </button>
+                </div>
+                <span className="settings-hint">
+                  {newTool === "bash"
+                    ? "Engine wildcards: “docker *” matches “docker …” and bare “docker”; “*” alone = whole tool."
+                    : "Only bash supports command patterns; other tools are set as a whole."}
+                </span>
               </div>
             </section>
           )}

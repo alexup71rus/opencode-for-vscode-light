@@ -101,7 +101,6 @@ export interface AppState {
   config: ProjectConfig | null;
 
   permissionRules: PermissionRulesSnapshot | null;
-  permissionSettingsOpen: boolean;
 
   activeFilePath: string | null;
   activeFileName: string | null;
@@ -153,7 +152,6 @@ export interface AppState {
   updateSettings: (patch: Partial<Settings>) => void;
   setSettingsOpen: (open: boolean) => void;
   setHelpOpen: (open: boolean) => void;
-  setPermissionSettingsOpen: (open: boolean) => void;
   requestPermissionRules: () => void;
   savePermissionRule: (rule: PermissionRule) => void;
   removePermissionRule: (tool: PermissionTool, pattern: string, source: "global" | "project") => void;
@@ -248,7 +246,6 @@ const initialState = {
   helpOpen: false,
   config: null as ProjectConfig | null,
   permissionRules: null as PermissionRulesSnapshot | null,
-  permissionSettingsOpen: false,
   activeFilePath: null as string | null,
   activeFileName: null as string | null,
   selection: null as string | null,
@@ -747,10 +744,6 @@ export const useStore = create<AppState>((set, get) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setHelpOpen: (open) => set({ helpOpen: open }),
 
-  setPermissionSettingsOpen: (open) => {
-    set({ permissionSettingsOpen: open });
-    if (open) postMessage({ type: "getPermissionRules" });
-  },
   requestPermissionRules: () => postMessage({ type: "getPermissionRules" }),
   savePermissionRule: (rule) => postMessage({ type: "savePermissionRule", rule }),
   removePermissionRule: (tool, pattern, source) =>

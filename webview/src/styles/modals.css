@@ -390,3 +390,92 @@
   opacity: 0.85;
 }
 
+/* Permissions tab */
+.perm-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.perm-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 90px 70px 24px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.08));
+}
+
+.perm-tool {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.perm-pattern {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perm-action {
+  width: 90px;
+}
+
+.perm-source {
+  justify-self: start;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.25));
+  color: var(--vscode-badge-foreground, currentColor);
+}
+
+.perm-source-project {
+  background: var(--vscode-activityBarBadge-background, var(--vscode-badge-background));
+}
+
+.perm-remove {
+  justify-self: center;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  opacity: 0.55;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.perm-remove:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.perm-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.perm-pattern-input {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+
+.perm-path {
+  font-family: var(--vscode-editor-font-family, monospace);
+  word-break: break-all;
+}
+
