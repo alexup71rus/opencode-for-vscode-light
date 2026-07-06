@@ -95,6 +95,42 @@ export function pickWriteTarget(workspace: string, home: string, hasGitRoot: boo
   return { scope, path: configFilePath(scope, workspace) };
 }
 
+export interface PermissionRulesSnapshot {
+  rules: PermissionRule[];
+  writeTarget: WriteScope;
+  projectFileExists: boolean;
+  globalPath: string;
+  projectPath: string;
+}
+
+function readPermissionBlock(text: string): unknown {
+  try {
+    return (parse(text, undefined, { allowTrailingComma: true }) as { permission?: unknown } | null)?.permission;
+  } catch {
+    return undefined;
+  }
+}
+
+export function loadPermissionRules(workspace: string, home: string, hasGitRoot: boolean): PermissionRulesSnapshot {
+  const globalPath = configFilePath("global", workspace);
+  const projectPath = configFilePath("project", workspace);
+  const rules: PermissionRule[] = [];
+  if (fs.existsSync(globalPath)) {
+    rules.push(...parsePermissionBlock(readPermissionBlock(fs.readFileSync(globalPath, "utf8")), "global"));
+  }
+  if (fs.existsSync(projectPath)) {
+    rules.push(...parsePermissionBlock(readPermissionBlock(fs.readFileSync(projectPath, "utf8")), "project"));
+  }
+  const target = pickWriteTarget(workspace, home, hasGitRoot);
+  return {
+    rules,
+    writeTarget: target.scope,
+    projectFileExists: fs.existsSync(projectPath),
+    globalPath,
+    projectPath,
+  };
+}
+
 // Prefer an existing opencode.jsonc/.json; default to opencode.json (mirrors engine
 // globalConfigFile, config.ts:139-147).
 export function configFilePath(scope: WriteScope, workspace: string): string {

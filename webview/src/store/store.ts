@@ -20,6 +20,9 @@ import type {
   SendMessageOptions,
   MessageAttachment,
   QuestionRequest,
+  PermissionRule,
+  PermissionRulesSnapshot,
+  PermissionTool,
 } from "../api/types";
 import { postMessage } from "../api/vscodeApi";
 import type { FileChange } from "../changes";
@@ -97,6 +100,9 @@ export interface AppState {
 
   config: ProjectConfig | null;
 
+  permissionRules: PermissionRulesSnapshot | null;
+  permissionSettingsOpen: boolean;
+
   activeFilePath: string | null;
   activeFileName: string | null;
   selection: string | null;
@@ -147,6 +153,11 @@ export interface AppState {
   updateSettings: (patch: Partial<Settings>) => void;
   setSettingsOpen: (open: boolean) => void;
   setHelpOpen: (open: boolean) => void;
+  setPermissionSettingsOpen: (open: boolean) => void;
+  requestPermissionRules: () => void;
+  savePermissionRule: (rule: PermissionRule) => void;
+  removePermissionRule: (tool: PermissionTool, pattern: string, source: "global" | "project") => void;
+  reloadServer: () => void;
   setSidebarWidth: (w: number, persist?: boolean) => void;
   setRightWidth: (w: number, persist?: boolean) => void;
   enqueueMessage: (m: Omit<QueuedMessage, "id">, priority?: boolean) => void;
@@ -236,6 +247,8 @@ const initialState = {
   settingsOpen: false,
   helpOpen: false,
   config: null as ProjectConfig | null,
+  permissionRules: null as PermissionRulesSnapshot | null,
+  permissionSettingsOpen: false,
   activeFilePath: null as string | null,
   activeFileName: null as string | null,
   selection: null as string | null,
@@ -596,6 +609,10 @@ export const useStore = create<AppState>((set, get) => ({
         set({ config: msg.config });
         break;
 
+      case "permissionRules":
+        set({ permissionRules: msg.snapshot });
+        break;
+
       case "stats":
         set({ totalCost: msg.totalCost, totalTokens: msg.totalTokens });
         break;
@@ -729,4 +746,14 @@ export const useStore = create<AppState>((set, get) => ({
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setHelpOpen: (open) => set({ helpOpen: open }),
+
+  setPermissionSettingsOpen: (open) => {
+    set({ permissionSettingsOpen: open });
+    if (open) postMessage({ type: "getPermissionRules" });
+  },
+  requestPermissionRules: () => postMessage({ type: "getPermissionRules" }),
+  savePermissionRule: (rule) => postMessage({ type: "savePermissionRule", rule }),
+  removePermissionRule: (tool, pattern, source) =>
+    postMessage({ type: "removePermissionRule", tool, pattern, source }),
+  reloadServer: () => postMessage({ type: "reloadServer" }),
 }));

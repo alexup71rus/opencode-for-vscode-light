@@ -22,6 +22,24 @@ import type {
 
 export type FileSearchSource = "mention" | "attach";
 
+export type PermissionTool = "edit" | "bash" | "webfetch" | "doom_loop" | "external_directory";
+export type PermissionAction = "allow" | "ask" | "deny";
+
+export interface PermissionRule {
+  tool: PermissionTool;
+  pattern: string;
+  action: PermissionAction;
+  source: "global" | "project";
+}
+
+export interface PermissionRulesSnapshot {
+  rules: PermissionRule[];
+  writeTarget: "global" | "project";
+  projectFileExists: boolean;
+  globalPath: string;
+  projectPath: string;
+}
+
 export type ExtensionToWebview =
   | { type: "state"; sessions: SessionWithMeta[]; activeSessionId: string | null }
   | {
@@ -42,6 +60,7 @@ export type ExtensionToWebview =
   | { type: "commands"; commands: CommandInfo[] }
   | { type: "fileResults"; files: string[]; source: FileSearchSource; query: string }
   | { type: "config"; config: ProjectConfig }
+  | { type: "permissionRules"; snapshot: PermissionRulesSnapshot }
   | { type: "skills"; skills: SkillInfo[] }
   | { type: "todos"; sessionId: string; todos: Todo[] }
   | { type: "mcpStatus"; servers: Record<string, McpServerStatus> }
@@ -80,4 +99,8 @@ export type WebviewToExtension =
   | { type: "copyText"; text: string }
   | { type: "refreshInspect" }
   | { type: "retryConnection" }
-  | { type: "openVscodeSettings" };
+  | { type: "openVscodeSettings" }
+  | { type: "getPermissionRules" }
+  | { type: "savePermissionRule"; rule: PermissionRule }
+  | { type: "removePermissionRule"; tool: PermissionTool; pattern: string; source: "global" | "project" }
+  | { type: "reloadServer" };

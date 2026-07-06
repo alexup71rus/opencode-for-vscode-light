@@ -15,7 +15,7 @@ import type { StatsService } from "../services/statsService";
 import type { EventStream } from "../bridge/eventStream";
 import { ContextProvider } from "./contextProvider";
 import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
-import { isPermissionTool, pickWriteTarget, writePermissionRule } from "./permissionConfig";
+import { isPermissionTool, pickWriteTarget, writePermissionRule, removePermissionRule, loadPermissionRules, configFilePath, type WriteScope } from "./permissionConfig";
 
 import type {
   ExtensionToWebview,
@@ -486,6 +486,49 @@ export class WebviewPanelManager {
         }
         break;
       }
+      case "getPermissionRules": {
+        try {
+          this.pushPermissionRules();
+        } catch (err) {
+          this.reportError(err, "load permission rules");
+        }
+        break;
+      }
+      case "savePermissionRule": {
+        try {
+          const workspace = this.client.workdirPath;
+          const file = configFilePath(msg.rule.source, workspace);
+          writePermissionRule(file, {
+            tool: msg.rule.tool,
+            pattern: msg.rule.pattern,
+            action: msg.rule.action,
+            source: msg.rule.source,
+          });
+          this.pushPermissionRules();
+        } catch (err) {
+          this.reportError(err, "save permission rule");
+        }
+        break;
+      }
+      case "removePermissionRule": {
+        try {
+          const workspace = this.client.workdirPath;
+          const file = configFilePath(msg.source, workspace);
+          removePermissionRule(file, msg.tool, msg.pattern);
+          this.pushPermissionRules();
+        } catch (err) {
+          this.reportError(err, "remove permission rule");
+        }
+        break;
+      }
+      case "reloadServer": {
+        try {
+          await vscode.commands.executeCommand("workbench.action.reloadWindow");
+        } catch (err) {
+          this.reportError(err, "reload window");
+        }
+        break;
+      }
       default: {
         break;
       }
@@ -506,6 +549,12 @@ export class WebviewPanelManager {
         this.reportError(err, "persist always-allow");
       }
     }
+  }
+
+  private pushPermissionRules(): void {
+    const workspace = this.client.workdirPath;
+    const snapshot = loadPermissionRules(workspace, os.homedir(), existsSync(path.join(workspace, ".git")));
+    this.postMessage({ type: "permissionRules", snapshot });
   }
 
   private attachServiceListeners(): void {

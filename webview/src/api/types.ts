@@ -316,6 +316,24 @@ export interface Permission {
   time: { created: number };
 }
 
+export type PermissionTool = "edit" | "bash" | "webfetch" | "doom_loop" | "external_directory";
+export type PermissionAction = "allow" | "ask" | "deny";
+
+export interface PermissionRule {
+  tool: PermissionTool;
+  pattern: string;
+  action: PermissionAction;
+  source: "global" | "project";
+}
+
+export interface PermissionRulesSnapshot {
+  rules: PermissionRule[];
+  writeTarget: "global" | "project";
+  projectFileExists: boolean;
+  globalPath: string;
+  projectPath: string;
+}
+
 export interface Session {
   id: string;
   projectID: string;
@@ -416,6 +434,7 @@ export type ExtensionToWebview =
   | { type: "mcpStatus"; servers: Record<string, McpServerStatus> }
   | { type: "lspStatus"; servers: LspStatusInfo[] }
   | { type: "config"; config: ProjectConfig }
+  | { type: "permissionRules"; snapshot: PermissionRulesSnapshot }
   | { type: "stats"; totalCost: number; totalTokens: { input: number; output: number; reasoning: number } }
   | { type: "context"; filePath: string | null; fileName: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
@@ -450,4 +469,8 @@ export type WebviewToExtension =
   | { type: "copyText"; text: string }
   | { type: "refreshInspect" }
   | { type: "retryConnection" }
-  | { type: "openVscodeSettings" };
+  | { type: "openVscodeSettings" }
+  | { type: "getPermissionRules" }
+  | { type: "savePermissionRule"; rule: PermissionRule }
+  | { type: "removePermissionRule"; tool: PermissionTool; pattern: string; source: "global" | "project" }
+  | { type: "reloadServer" };
