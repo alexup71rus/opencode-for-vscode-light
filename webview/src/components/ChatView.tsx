@@ -117,6 +117,10 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
     const wasBusy = prev.type === "busy";
     prev.type = cur;
     if (wasBusy && cur !== "busy") {
+      if (useStore.getState().suppressQueueOnIdle) {
+        useStore.setState({ suppressQueueOnIdle: false });
+        return;
+      }
       const q = shiftQueuedMessage();
       if (q) {
         postMessage({

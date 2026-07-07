@@ -69,6 +69,11 @@
           "type": "boolean",
           "default": true,
           "description": "Write errors and SSE disconnects to a persistent log file (survives VS Code reload). The file lives in the extension's global storage."
+        },
+        "opencode.openOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically open the chat panel when VS Code starts. Off by default — use the status bar button or command palette to open it."
         }
       }
     }

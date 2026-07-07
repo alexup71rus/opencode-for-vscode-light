@@ -396,6 +396,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   };
 
   const abort = () => {
+    useStore.setState({ suppressQueueOnIdle: true });
     postMessage({ type: "abortSession", sessionId });
   };
 

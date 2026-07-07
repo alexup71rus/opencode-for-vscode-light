@@ -179,6 +179,7 @@ export default function App(): React.ReactElement {
 
   useEffect(() => {
     postMessage({ type: "getContext" });
+    postMessage({ type: "setLogToFile", enabled: useStore.getState().settings.logToFile });
   }, []);
 
   useEffect(() => {
@@ -241,6 +242,7 @@ export default function App(): React.ReactElement {
         const status = active ? useStore.getState().sessionStatus[active] : undefined;
         if (!typing && status?.type === "busy") {
           e.preventDefault();
+          useStore.setState({ suppressQueueOnIdle: true });
           postMessage({ type: "abortSession", sessionId: active! });
         }
         return;

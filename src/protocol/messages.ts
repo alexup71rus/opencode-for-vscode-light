@@ -104,6 +104,7 @@ export type WebviewToExtension =
   | { type: "refreshInspect" }
   | { type: "retryConnection" }
   | { type: "openVscodeSettings" }
+  | { type: "setLogToFile"; enabled: boolean }
   | { type: "getPermissionRules" }
   | { type: "savePermissionRule"; rule: PermissionRule }
   | { type: "removePermissionRule"; tool: PermissionTool; pattern: string; source: "global" | "project" }

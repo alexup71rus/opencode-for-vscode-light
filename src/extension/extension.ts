@@ -257,7 +257,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     context.subscriptions.push({ dispose: () => diffProvider.dispose() });
 
-    panelManager.show();
+    if (vscode.workspace.getConfiguration("opencode").get("openOnStartup", false)) {
+      panelManager.show();
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log(`activation failed: ${message}`);

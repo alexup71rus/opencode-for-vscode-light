@@ -94,6 +94,7 @@ export function SettingsPanel(): React.ReactElement | null {
   const [draftAutoExpandError, setDraftAutoExpandError] = useState(settings.autoExpandError);
   const [draftSoundOnComplete, setDraftSoundOnComplete] = useState(settings.soundOnComplete);
   const [draftSendOnEnter, setDraftSendOnEnter] = useState(settings.sendOnEnter);
+  const [draftLogToFile, setDraftLogToFile] = useState(settings.logToFile);
   const [tab, setTab] = useState<Tab>("general");
   const [newTool, setNewTool] = useState<PermissionTool>("bash");
   // Separate "custom mode" flag so typing a name that happens to match a preset
@@ -113,8 +114,9 @@ export function SettingsPanel(): React.ReactElement | null {
       setDraftAutoExpandError(settings.autoExpandError);
       setDraftSoundOnComplete(settings.soundOnComplete);
       setDraftSendOnEnter(settings.sendOnEnter);
+      setDraftLogToFile(settings.logToFile);
     }
-  }, [open, settings.systemPrompt, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
+  }, [open, settings.systemPrompt, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, settings.logToFile, selectedModel, selectedAgent]);
 
   useEffect(() => {
     if (open && tab === "permissions") requestPermissionRules();
@@ -168,7 +170,8 @@ export function SettingsPanel(): React.ReactElement | null {
   if (!open) return null;
 
   const save = () => {
-    updateSettings({ systemPrompt, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter });
+    updateSettings({ systemPrompt, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter, logToFile: draftLogToFile });
+    postMessage({ type: "setLogToFile", enabled: draftLogToFile });
     if (draftModel) {
       const sameKey =
         !!selectedModel && modelKey(draftModel) === modelKey(selectedModel);
@@ -809,6 +812,18 @@ export function SettingsPanel(): React.ReactElement | null {
                 <span className="settings-hint">
                   These come from your project&apos;s opencode.json. Edit the file to change them.
                 </span>
+              </section>
+
+              <section className="settings-section">
+                <div className="settings-section-title">Diagnostics</div>
+                <div className="settings-field">
+                  <ToggleRow
+                    checked={draftLogToFile}
+                    onChange={setDraftLogToFile}
+                    title="Persist error log to file"
+                    hint="Errors and SSE disconnects are written to error.log in the extension's storage, surviving VS Code reloads. Useful for diagnosing hangs and crashes. View it via the Command Palette: Open Error Log."
+                  />
+                </div>
               </section>
             </>
           )}

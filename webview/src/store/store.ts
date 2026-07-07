@@ -35,6 +35,7 @@ export interface Settings {
   autoExpandError: boolean;
   soundOnComplete: boolean;
   sendOnEnter: boolean;
+  logToFile: boolean;
 }
 
 export interface QueuedMessage {
@@ -119,6 +120,7 @@ export interface AppState {
   pinnedSlash: string[];
   changesBaseline: Record<string, string>;
   queuedMessages: QueuedMessage[];
+  suppressQueueOnIdle: boolean;
   diffModal:
     | null
     | (DiffModalBase & { status: "loading" })
@@ -240,7 +242,7 @@ const initialState = {
   todosBySession: {} as Record<string, Todo[]>,
   mcpStatus: {} as Record<string, McpServerStatus>,
   lspStatus: [] as LspStatusInfo[],
-  settings: { systemPrompt: "", autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: true, autoExpandError: true, soundOnComplete: true, sendOnEnter: true },
+  settings: { systemPrompt: "", autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: true, autoExpandError: true, soundOnComplete: true, sendOnEnter: true, logToFile: true },
   pinnedSessions: [] as string[],
   sessionSearch: "",
   collapsedProviders: [] as string[],
@@ -256,6 +258,7 @@ const initialState = {
   selection: null as string | null,
   sessionStatus: {} as Record<string, SessionStatusInfo>,
   queuedMessages: [] as QueuedMessage[],
+  suppressQueueOnIdle: false,
   diffModal: null as AppState["diffModal"],
   allFilesDiffModal: null as AppState["allFilesDiffModal"],
   fileExists: {} as Record<string, boolean>,
@@ -322,6 +325,7 @@ export const useStore = create<AppState>((set, get) => ({
     autoExpandError: persistedUi.settings?.autoExpandError ?? true,
     soundOnComplete: persistedUi.settings?.soundOnComplete ?? true,
     sendOnEnter: persistedUi.settings?.sendOnEnter ?? true,
+    logToFile: persistedUi.settings?.logToFile ?? true,
   },
   pinnedSessions: persistedUi.pinnedSessions ?? [],
   hiddenModels: persistedUi.hiddenModels ?? [],

@@ -95,7 +95,11 @@ export class WebviewPanelManager {
 
   show(): void {
     if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Two, false);
+      // Reveal the existing panel in its current column without moving it.
+      // Passing undefined (rather than ViewColumn.Two) lets VS Code focus
+      // the tab wherever the user docked it; forcing Two would jerk a
+      // panel the user deliberately placed elsewhere.
+      this.panel.reveal(undefined, false);
       return;
     }
 
@@ -487,6 +491,10 @@ export class WebviewPanelManager {
         } catch (err) {
           this.reportError(err, "open VS Code settings");
         }
+        break;
+      }
+      case "setLogToFile": {
+        this.fileLogger.setEnabled(msg.enabled);
         break;
       }
       case "retryConnection": {
