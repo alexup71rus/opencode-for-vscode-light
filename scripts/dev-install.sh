@@ -19,25 +19,58 @@ echo "==> packaging vsix"
 VSIX="opencode-vscode-client-$(node -p "require('./package.json').version").vsix"
 vsce package --no-dependencies --no-git-tag-version -o "$VSIX"
 
-# 3. Locate the VS Code CLI: PATH first, then the macOS .app bundle, then Cursor.
+# 3. Locate the editor CLI. An explicit EDITOR_CLI wins; otherwise auto-detect.
+#    EDITOR_CLI accepts: a name on PATH, an absolute path to the binary, or a
+#    short alias (code / codium / cursor / code-insiders) that resolves to the
+#    macOS .app bundle under /Applications.
+resolve_alias() {
+  case "$1" in
+    code)           echo "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" ;;
+    codium)         echo "/Applications/VSCodium.app/Contents/Resources/app/bin/codium" ;;
+    cursor)         echo "/Applications/Cursor.app/Contents/Resources/app/bin/cursor" ;;
+    code-insiders)  echo "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders" ;;
+    *)              echo "" ;;
+  esac
+}
+
 CODE_CLI=""
-for candidate in \
-  "code" \
-  "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
-  "/Applications/Cursor.app/Contents/Resources/app/bin/cursor" \
-  "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders"; do
-  if command -v "$candidate" >/dev/null 2>&1; then
-    CODE_CLI="$candidate"
-    break
-  elif [ -x "$candidate" ]; then
-    CODE_CLI="$candidate"
-    break
+if [ -n "${EDITOR_CLI:-}" ]; then
+  # Explicit hint: a name on PATH, an absolute path, or a known short alias.
+  if command -v "$EDITOR_CLI" >/dev/null 2>&1; then
+    CODE_CLI="$EDITOR_CLI"
+  elif [ -x "$EDITOR_CLI" ]; then
+    CODE_CLI="$EDITOR_CLI"
+  else
+    resolved="$(resolve_alias "$EDITOR_CLI")"
+    if [ -n "$resolved" ] && [ -x "$resolved" ]; then
+      CODE_CLI="$resolved"
+    else
+      echo "ERROR: EDITOR_CLI='$EDITOR_CLI' is not on PATH, not an executable path, and not a known alias." >&2
+      echo "Known aliases: code, codium, cursor, code-insiders." >&2
+      exit 1
+    fi
   fi
-done
+fi
 
 if [ -z "$CODE_CLI" ]; then
-  echo "ERROR: could not find a VS Code / Cursor CLI." >&2
-  echo "Put 'code' on your PATH, or edit scripts/dev-install.sh to point at your editor." >&2
+  # Auto-detect: PATH first, then the macOS .app bundles (VS Code → Codium → Cursor → Insiders).
+  for candidate in \
+    "code" \
+    "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
+    "codium" \
+    "/Applications/VSCodium.app/Contents/Resources/app/bin/codium" \
+    "/Applications/Cursor.app/Contents/Resources/app/bin/cursor" \
+    "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders"; do
+    if command -v "$candidate" >/dev/null 2>&1 || [ -x "$candidate" ]; then
+      CODE_CLI="$candidate"
+      break
+    fi
+  done
+fi
+
+if [ -z "$CODE_CLI" ]; then
+  echo "ERROR: could not find a VS Code / Codium / Cursor CLI." >&2
+  echo "Put 'code' (or 'codium') on your PATH, set EDITOR_CLI=codium, or edit scripts/dev-install.sh." >&2
   exit 1
 fi
 
@@ -47,5 +80,5 @@ echo "==> installing into: $CODE_CLI"
 cat <<EOF
 
 Installed: $VSIX
-In VS Code: open the Command Palette (Cmd+Shift+P) -> "Developer: Reload Window".
+In your editor: open the Command Palette (Cmd+Shift+P) -> "Developer: Reload Window".
 EOF

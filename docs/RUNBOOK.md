@@ -37,7 +37,14 @@ npm run dev:install        # compile → package → code --install-extension --
 ```
 Then in VS Code: `Cmd+Shift+P` → `Developer: Reload Window`.
 
-`scripts/dev-install.sh` auto-detects the `code` CLI: PATH → `/Applications/Visual Studio Code.app/...` → Cursor → Insiders.
+`scripts/dev-install.sh` auto-detects the editor CLI: PATH (`code`/`codium`) → `/Applications/Visual Studio Code.app/...` → `/Applications/VSCodium.app/...` → Cursor → Insiders. To target a specific editor explicitly, set `EDITOR_CLI`:
+
+```
+EDITOR_CLI=codium npm run dev:install   # install into VSCodium only
+EDITOR_CLI=code npm run dev:install      # install into VS Code only
+```
+
+Codium installs into `~/.vscode-oss/extensions/` (separate from VS Code's `~/.vscode/extensions/`).
 
 ## Important gotchas
 - **Loop A vs Loop B copies are different.** Workspace `dist/` (Loop A) ≠ installed copy in `~/.vscode/extensions/` (Loop B). Changes you see in the F5 dev host will NOT appear in your main window until you run `dev:install`.

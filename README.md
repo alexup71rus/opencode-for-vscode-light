@@ -82,7 +82,7 @@ code --install-extension opencode-vscode-client-<version>.vsix
 ```bash
 npm install
 npm run compile
-npm run dev:install      # compile → package → install into VS Code, then reload window
+npm run dev:install      # compile → package → install into VS Code / Codium / Cursor, then reload window
 ```
 
 Or build a vsix to share:
