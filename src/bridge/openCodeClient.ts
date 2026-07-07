@@ -19,22 +19,17 @@ import type {
   LspStatusInfo,
   QuestionRequest,
 } from "./types";
+import { OpenCodeClientError } from "./errors";
+
+// Re-export so existing `import { OpenCodeClientError } from ".../openCodeClient"`
+// keeps working without touching those files.
+export { OpenCodeClientError };
 
 export interface FileAttachment {
   type: "file";
   url: string;
   mime: string;
   filename?: string;
-}
-
-export class OpenCodeClientError extends Error {
-  constructor(
-    message: string,
-    public readonly statusCode?: number,
-  ) {
-    super(message);
-    this.name = "OpenCodeClientError";
-  }
 }
 
 export class OpenCodeClient {
@@ -192,7 +187,10 @@ export class OpenCodeClient {
       path: { id: sessionId, permissionID: permissionId },
       body: { response },
     });
-    if (res.error) throw toError(res.error);
+    // Carry the HTTP status so callers can distinguish a stale/unknown
+    // permission (400/404 — already answered, reverted, or a phantom that
+    // re-surfaced after a reconnect) from a transient network/server failure.
+    if (res.error) throw toError(res.error, res.response?.status);
   }
 
   async listCommands(): Promise<Array<{ name: string; description?: string; agent?: string }>> {
@@ -429,13 +427,13 @@ export class OpenCodeClient {
   }
 }
 
-function toError(err: unknown): OpenCodeClientError {
+function toError(err: unknown, statusCode?: number): OpenCodeClientError {
   if (typeof err === "object" && err !== null) {
     const e = err as { message?: string; name?: string };
-    if (e.message) return new OpenCodeClientError(e.message);
-    if (e.name) return new OpenCodeClientError(e.name);
+    if (e.message) return new OpenCodeClientError(e.message, statusCode);
+    if (e.name) return new OpenCodeClientError(e.name, statusCode);
   }
-  return new OpenCodeClientError(String(err));
+  return new OpenCodeClientError(String(err), statusCode);
 }
 
 function normalizeQuestion(raw: unknown): QuestionRequest {

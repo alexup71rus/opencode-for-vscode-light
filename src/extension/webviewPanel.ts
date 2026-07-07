@@ -266,15 +266,12 @@ export class WebviewPanelManager {
                 .find((p) => p.id === msg.permissionId)
             : undefined;
         try {
+          // replyPermission reconciles the authoritative map itself and emits
+          // `permissionReplied` (forwarded to the webview) on success OR on a
+          // stale 400/404 — so the card clears without depending on the
+          // unreliable server SSE event. Only transient failures (network, 5xx)
+          // reach this catch, leaving the card intact so the user can retry.
           await this.sessionService.replyPermission(msg.sessionId, msg.permissionId, msg.decision);
-          // Optimistically clear the card from the store. The server's
-          // permission.replied event name is not reliable across versions, so
-          // don't depend on it for removal — the user already acted.
-          this.postMessage({
-            type: "permissionReplied",
-            sessionId: msg.sessionId,
-            permissionID: msg.permissionId,
-          });
           if (alwaysPersist) this.persistAlwaysAllow(alwaysPersist);
         } catch (err) {
           this.reportError(err, "reply to permission");

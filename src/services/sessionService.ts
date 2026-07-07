@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import type { Session, Message, Part, Permission, SessionStatus } from "@opencode-ai/sdk";
+import { OpenCodeClientError } from "../bridge/errors";
 import type { OpenCodeClient } from "../bridge/openCodeClient";
 import type { EventStream } from "../bridge/eventStream";
 import type {
@@ -249,12 +250,45 @@ export class SessionService extends EventEmitter {
     this.emit("sessionsChanged");
   }
 
+  /**
+   * Reply to a permission and reconcile the authoritative map.
+   *
+   * On success we drop the entry immediately rather than waiting for the
+   * server's `permission.replied` SSE event, which is unreliable across engine
+   * versions (see webviewPanel). Leaving answered permissions in the map is the
+   * root of the phantom-confirm bug: a later `pushInitialState` (triggered by a
+   * tab switch / panel revisit) would re-send them as if still pending.
+   *
+   * A 400/404 means the server no longer knows this permission — already
+   * answered, reverted, or a phantom that re-surfaced after a reconnect. That
+   * is not actionable, so we treat it the same as success: drop it and signal
+   * the card cleared. Transient failures (network, 5xx) are rethrown with the
+   * entry left intact so the user can retry.
+   */
   async replyPermission(
     sessionId: string,
     permissionId: string,
     decision: "once" | "always" | "reject",
   ): Promise<void> {
-    await this.client.replyPermission(sessionId, permissionId, decision);
+    try {
+      await this.client.replyPermission(sessionId, permissionId, decision);
+    } catch (err) {
+      const status = err instanceof OpenCodeClientError ? err.statusCode : undefined;
+      const stale = status === 400 || status === 404;
+      if (!stale) throw err;
+    }
+    this.clearPermission(sessionId, permissionId);
+  }
+
+  /** Remove a permission from the authoritative map and notify listeners. Safe
+   *  to call for an id that is no longer present (no-op + no event). */
+  private clearPermission(sessionId: string, permissionId: string): void {
+    const list = this.permissionsBySession.get(sessionId);
+    if (!list) return;
+    const next = list.filter((p) => p.id !== permissionId);
+    if (next.length === list.length) return;
+    this.permissionsBySession.set(sessionId, next);
+    this.emit("permissionReplied", { sessionId, permissionID: permissionId });
   }
 
   async replyQuestion(requestId: string, answers: string[][]): Promise<void> {
@@ -621,6 +655,28 @@ export class SessionService extends EventEmitter {
   };
 
   private handleServerConnected = (): void => {
-    void this.refreshSessions();
+    void this.reconcileOnReconnect();
   };
+
+  /**
+   * On (re)connect, refresh sessions/statuses, then conservatively drop stale
+   * pending permissions. The engine exposes no GET for pending permissions, so
+   * we can't re-read the true list. Instead we clear permissions for sessions
+   * that are NOT busy: an idle session cannot have a live permission prompt
+   * outstanding, so any lingering entry is a phantom left over from a dropped
+   * connection (its answer never round-tripped, or it was answered elsewhere).
+   * Busy sessions are left untouched — they may hold a genuinely pending prompt
+   * that the agent is still blocked on.
+   */
+  private async reconcileOnReconnect(): Promise<void> {
+    await this.refreshSessions();
+    for (const [sessionId, list] of this.permissionsBySession) {
+      if (list.length === 0) continue;
+      if (this.getStatus(sessionId).type === "busy") continue;
+      this.permissionsBySession.set(sessionId, []);
+      for (const perm of list) {
+        this.emit("permissionReplied", { sessionId, permissionID: perm.id });
+      }
+    }
+  }
 }
