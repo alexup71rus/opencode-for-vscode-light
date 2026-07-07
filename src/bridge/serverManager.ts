@@ -112,6 +112,14 @@ export class ServerManager {
       );
     }
 
+    // Before spawning a fresh server, clear out orphaned `opencode serve`
+    // processes left behind by a previous extension host that exited without
+    // calling deactivate() (crash, force-quit, window reload). Without this
+    // they accumulate ~one per launch. Only processes whose parent has died
+    // (re-parented to PID 1) are touched — live servers owned by another
+    // window's host keep their real parent PID and are left alone.
+    this.reapOrphanedServers(binary);
+
     const port = await findFreePort(this.hostname);
     const password = crypto.randomUUID();
     const authHeader = makeAuthHeader(password);
@@ -208,6 +216,73 @@ export class ServerManager {
     } else {
       // No logger — still must drain to prevent pipe-buffer deadlock.
       stream.on("data", () => {});
+    }
+  }
+
+  /**
+   * Kill any lingering `opencode serve` processes from a previous extension
+   * host that exited without running deactivate() (crash, force-quit, reload).
+   * We target only processes whose parent is gone — i.e. reparented to PID 1
+   * (launchd/init) — so a live server owned by another VS Code window (its
+   * extension host still alive) is never touched.
+   *
+   * Windows has no single init process, so the reparent heuristic is
+   * unreliable there; we skip rather than risk killing another window's
+   * live server. macOS/Linux are the platforms where this leak was seen.
+   *
+   * Best-effort: any failure is logged but never blocks startup, since the
+   * worst case is the old situation (a few stale processes) rather than a
+   * startup regression.
+   */
+  private reapOrphanedServers(binary: string): void {
+    if (process.platform === "win32") return;
+    try {
+      const listing = spawnSync(
+        "ps",
+        ["-eo", "pid=,ppid=,command="],
+        { encoding: "utf-8" },
+      ).stdout ?? "";
+
+      const ourBinary = path.basename(binary);
+      const targets: number[] = [];
+
+      for (const rawLine of listing.split("\n")) {
+        const line = rawLine.trim();
+        if (line.length === 0) continue;
+        const parts = line.split(/\s+/);
+        if (parts.length < 3) continue;
+        const pid = Number(parts[0]);
+        const ppid = Number(parts[1]);
+        if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
+        if (pid === process.pid || pid === process.ppid) continue;
+
+        // Only processes whose parent died and got reparented to launchd/init
+        // — a live server owned by another VS Code window keeps its real
+        // extension host as parent and is left untouched.
+        if (ppid !== 1) continue;
+
+        const cmdParts = parts.slice(2);
+        // The executable is the first token; match by basename so path
+        // differences across installs (~/.opencode/bin vs a user override)
+        // still match. "serve" must be the first argument.
+        const isOurs = path.basename(cmdParts[0] ?? "") === ourBinary;
+        const isServe = cmdParts[1] === "serve";
+        if (isOurs && isServe) {
+          targets.push(pid);
+        }
+      }
+
+      if (targets.length === 0) return;
+      this.log?.(`[server] reaping ${targets.length} orphaned opencode serve process(es): ${targets.join(", ")}`);
+      for (const pid of targets) {
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch {
+          // Already gone, or not ours to signal — ignore.
+        }
+      }
+    } catch (err) {
+      this.log?.(`[server] orphan reap skipped: ${formatError(err)}`);
     }
   }
 
