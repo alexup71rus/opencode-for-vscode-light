@@ -331,6 +331,7 @@ export class WebviewPanelManager {
             msg.edits,
             msg.isNewFile,
             this.client.workdirPath,
+            this.panel?.viewColumn,
           );
         } catch (err) {
           this.reportError(err, "open file diff");

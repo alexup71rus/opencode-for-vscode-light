@@ -4,6 +4,43 @@ import { readFile } from "fs/promises";
 
 export const DIFF_SCHEME = "opencode-diff";
 
+/**
+ * Pick the view column file editors/diffs should open in.
+ *
+ * The chat webview occupies its own group; we must never open a diff "Beside"
+ * because Beside is resolved relative to the CURRENTLY ACTIVE group — and when
+ * the user clicks a chip inside the chat, the active group IS the webview, so
+ * Beside splits a new group to the right of the chat every time.
+ *
+ * Strategy: find the first tab group that is not the webview's own group
+ * (identified by its live viewColumn, passed in) and reuse its column so diffs
+ * stack as tabs there. If no such group exists (chat-only layout), target the
+ * lowest column that is not the webview's — creating exactly one group to the
+ * webview's left, deterministically, instead of an active-relative split.
+ */
+function pickEditorViewColumn(
+  webviewColumn: vscode.ViewColumn | undefined,
+): vscode.ViewColumn {
+  const groups = vscode.window.tabGroups.all;
+
+  // A concrete file-editor group we can stack tabs into: any group whose
+  // column differs from the webview's. (Empty groups have no column collision
+  // risk; we simply skip the webview's own.)
+  const target = groups.find(
+    (g) => g.viewColumn !== webviewColumn && g.tabs.length > 0,
+  );
+  if (target) {
+    return target.viewColumn;
+  }
+
+  // No non-webview editor group exists. Deterministically target One (or the
+  // column just left of the webview) rather than Beside, which would split
+  // relative to the active (webview) group.
+  return webviewColumn && webviewColumn > vscode.ViewColumn.One
+    ? ((webviewColumn - 1) as vscode.ViewColumn)
+    : vscode.ViewColumn.One;
+}
+
 /** A single edit hunk reconstructed from a tool call's input. */
 export interface EditPatch {
   oldStr: string;
@@ -107,6 +144,7 @@ export async function openFileDiff(
   edits: EditPatch[],
   isNewFile: boolean,
   workdir: string,
+  webviewColumn?: vscode.ViewColumn,
 ): Promise<void> {
   const abs = resolveAbs(filePath, workdir);
   const fileUri = vscode.Uri.file(abs);
@@ -115,7 +153,8 @@ export async function openFileDiff(
   if ("error" in r) {
     // File gone (or never written here) — fall back to opening it directly.
     await vscode.commands.executeCommand("vscode.open", fileUri, {
-      viewColumn: vscode.ViewColumn.Beside,
+      viewColumn: pickEditorViewColumn(webviewColumn),
+      preserveFocus: false,
     });
     return;
   }
@@ -126,7 +165,8 @@ export async function openFileDiff(
   // just open the file.
   if (!isNewFile && before === after) {
     await vscode.commands.executeCommand("vscode.open", fileUri, {
-      viewColumn: vscode.ViewColumn.Beside,
+      viewColumn: pickEditorViewColumn(webviewColumn),
+      preserveFocus: false,
     });
     return;
   }
@@ -139,8 +179,14 @@ export async function openFileDiff(
   });
   provider.set(proposalUri, before);
 
+  // Reuse the existing file-editor group (via pickEditorViewColumn) so every
+  // diff lands as a new tab in that same group instead of splitting off a
+  // fresh group each time — "Beside" is relative to whichever editor is
+  // currently active, so repeated calls (e.g. active editor is the previous
+  // diff tab) would otherwise keep opening new splits instead of reusing it.
   await vscode.commands.executeCommand("vscode.diff", proposalUri, fileUri, label, {
     preview: false,
-    viewColumn: vscode.ViewColumn.Beside,
+    preserveFocus: false,
+    viewColumn: pickEditorViewColumn(webviewColumn),
   });
 }
