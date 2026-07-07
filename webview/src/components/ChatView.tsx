@@ -351,7 +351,7 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
             stickToBottomRef={stickToBottomRef}
             seedAtBottom={seedAtBottom}
             bottomRef={bottomRef}
-            onTopVisibleKey={handleTopKey}
+            onActiveVisibleKey={handleTopKey}
             scrollToKeyRef={scrollToKeyRef}
             trailing={
               isCompacting || (isBusy && bubbles[bubbles.length - 1]?.message.info.role !== "assistant") ? (

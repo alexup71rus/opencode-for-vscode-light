@@ -88,7 +88,6 @@ export function SettingsPanel(): React.ReactElement | null {
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
   const [draftModel, setDraftModel] = useState<ModelSelection | null>(selectedModel);
   const [draftAgent, setDraftAgent] = useState<string | null>(selectedAgent);
-  const [draftAutoApprove, setDraftAutoApprove] = useState(settings.autoApprove);
   const [draftExpandThinking, setDraftExpandThinking] = useState(settings.expandThinking);
   const [draftAutoExpandBash, setDraftAutoExpandBash] = useState(settings.autoExpandBash);
   const [draftAutoExpandEdit, setDraftAutoExpandEdit] = useState(settings.autoExpandEdit);
@@ -108,7 +107,6 @@ export function SettingsPanel(): React.ReactElement | null {
       setSystemPrompt(settings.systemPrompt);
       setDraftModel(selectedModel);
       setDraftAgent(selectedAgent);
-      setDraftAutoApprove(settings.autoApprove);
       setDraftExpandThinking(settings.expandThinking);
       setDraftAutoExpandBash(settings.autoExpandBash);
       setDraftAutoExpandEdit(settings.autoExpandEdit);
@@ -116,7 +114,7 @@ export function SettingsPanel(): React.ReactElement | null {
       setDraftSoundOnComplete(settings.soundOnComplete);
       setDraftSendOnEnter(settings.sendOnEnter);
     }
-  }, [open, settings.systemPrompt, settings.autoApprove, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
+  }, [open, settings.systemPrompt, settings.expandThinking, settings.autoExpandBash, settings.autoExpandEdit, settings.autoExpandError, settings.soundOnComplete, settings.sendOnEnter, selectedModel, selectedAgent]);
 
   useEffect(() => {
     if (open && tab === "permissions") requestPermissionRules();
@@ -170,7 +168,7 @@ export function SettingsPanel(): React.ReactElement | null {
   if (!open) return null;
 
   const save = () => {
-    updateSettings({ systemPrompt, autoApprove: draftAutoApprove, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter });
+    updateSettings({ systemPrompt, expandThinking: draftExpandThinking, autoExpandBash: draftAutoExpandBash, autoExpandEdit: draftAutoExpandEdit, autoExpandError: draftAutoExpandError, soundOnComplete: draftSoundOnComplete, sendOnEnter: draftSendOnEnter });
     if (draftModel) {
       const sameKey =
         !!selectedModel && modelKey(draftModel) === modelKey(selectedModel);
@@ -288,15 +286,6 @@ export function SettingsPanel(): React.ReactElement | null {
             <>
               <section className="settings-section">
                 <div className="settings-section-title">Agent behavior</div>
-                <div className="settings-field">
-                  <ToggleRow
-                    checked={draftAutoApprove}
-                    onChange={setDraftAutoApprove}
-                    danger
-                    title="YOLO mode — auto-approve every tool request"
-                    hint="When on, the agent runs without asking. Approvals are sent instantly. Use with care."
-                  />
-                </div>
                 <div className="settings-field">
                   <ToggleRow
                     checked={draftExpandThinking}

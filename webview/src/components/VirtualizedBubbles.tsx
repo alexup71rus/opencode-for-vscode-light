@@ -25,8 +25,9 @@ interface VirtualizedBubblesProps {
   seedAtBottom?: boolean;
   bottomRef?: React.RefObject<HTMLDivElement>;
   trailing?: React.ReactNode;
-  /** Fires with the key of the topmost visible item (null when empty). */
-  onTopVisibleKey?: (key: string | null) => void;
+  /** Fires with the key of the item under the viewport center (null when
+   * empty). Drives the nav-rail active dot. */
+  onActiveVisibleKey?: (key: string | null) => void;
   /** Parent assigns a scrollToKey function so external callers (nav rail) can
    * jump to an item that may currently be virtualized out. */
   scrollToKeyRef?: React.MutableRefObject<((key: string) => void) | null>;
@@ -36,11 +37,15 @@ interface WindowRange {
   start: number;
   end: number;
   firstVisible: number;
+  /** Item under the vertical center of the viewport. Drives the nav-rail active
+   * dot — the top edge tracks the *previous* turn (what you read sits mid-screen),
+   * so centering makes the active dot match the message actually in focus. */
+  centerVisible: number;
   topSpacer: number;
   bottomSpacer: number;
 }
 
-const EMPTY_RANGE: WindowRange = { start: 0, end: -1, firstVisible: -1, topSpacer: 0, bottomSpacer: 0 };
+const EMPTY_RANGE: WindowRange = { start: 0, end: -1, firstVisible: -1, centerVisible: -1, topSpacer: 0, bottomSpacer: 0 };
 
 export function VirtualizedBubbles({
   items,
@@ -51,7 +56,7 @@ export function VirtualizedBubbles({
   seedAtBottom,
   bottomRef,
   trailing,
-  onTopVisibleKey,
+  onActiveVisibleKey,
   scrollToKeyRef,
 }: VirtualizedBubblesProps): React.ReactElement {
   const innerRef = useRef<HTMLDivElement>(null);
@@ -84,6 +89,10 @@ export function VirtualizedBubbles({
     let start = 0;
     let end = -1;
     let firstVisible = -1;
+    let centerVisible = -1;
+    // The message sitting under the viewport's vertical midpoint (used for the
+    // nav-rail active dot, which should track what's in focus, not the top edge).
+    const centerY = scrollTop + viewportH / 2;
     let topSpacer = 0;
     let bottomOfEnd = 0;
     let foundStart = false;
@@ -97,6 +106,7 @@ export function VirtualizedBubbles({
         foundStart = true;
       }
       if (firstVisible === -1 && bottom > scrollTop) firstVisible = i;
+      if (centerVisible === -1 && bottom > centerY) centerVisible = i;
       if (top < bottomBound) {
         end = i;
         bottomOfEnd = bottom;
@@ -108,8 +118,11 @@ export function VirtualizedBubbles({
       topSpacer = 0;
     }
     if (end < start) end = Math.min(count - 1, start);
+    // centerY can sit past the last item's bottom (short session, scrolled to
+    // the end): fall back to the last visible item.
+    if (centerVisible === -1) centerVisible = firstVisible === -1 ? start : firstVisible;
     const bottomSpacer = Math.max(0, acc - bottomOfEnd);
-    return { start, end, firstVisible: firstVisible === -1 ? start : firstVisible, topSpacer, bottomSpacer };
+    return { start, end, firstVisible: firstVisible === -1 ? start : firstVisible, centerVisible, topSpacer, bottomSpacer };
   }, [count, getHeight, scrollRef]);
 
   const recompute = useCallback(() => {
@@ -123,14 +136,17 @@ export function VirtualizedBubbles({
         ? prev
         : next,
     );
-    if (onTopVisibleKey) {
-      const key = next.firstVisible >= 0 && next.firstVisible < count ? items[next.firstVisible].key : null;
+    if (onActiveVisibleKey) {
+      // Report the center item (not firstVisible): the nav-rail active dot
+      // should track the message in focus mid-screen, not the one clipped at
+      // the top edge (which is usually the previous turn).
+      const key = next.centerVisible >= 0 && next.centerVisible < count ? items[next.centerVisible].key : null;
       if (key !== lastTopKeyRef.current) {
         lastTopKeyRef.current = key;
-        onTopVisibleKey(key);
+        onActiveVisibleKey(key);
       }
     }
-  }, [computeRange, count, items, onTopVisibleKey]);
+  }, [computeRange, count, items, onActiveVisibleKey]);
 
   // Keep a live ref to recompute so the scroll listener can bind once instead of
   // re-binding on every streaming token (recompute changes per token, which
@@ -182,13 +198,13 @@ export function VirtualizedBubbles({
         let topSpacer = 0;
         for (let i = 0; i < start; i++) topSpacer += getHeight(i);
         firstVisibleRef.current = end;
-        setRange({ start, end, firstVisible: end, topSpacer, bottomSpacer: 0 });
+        setRange({ start, end, firstVisible: end, centerVisible: end, topSpacer, bottomSpacer: 0 });
       } else {
         const seedEnd = Math.min(end, 7);
         let bottomSpacer = 0;
         for (let i = seedEnd + 1; i < count; i++) bottomSpacer += getHeight(i);
         firstVisibleRef.current = 0;
-        setRange({ start: 0, end: seedEnd, firstVisible: 0, topSpacer: 0, bottomSpacer });
+        setRange({ start: 0, end: seedEnd, firstVisible: 0, centerVisible: 0, topSpacer: 0, bottomSpacer });
       }
       requestAnimationFrame(() => recomputeRef.current());
       return;
@@ -245,7 +261,7 @@ export function VirtualizedBubbles({
       let bottomSpacer = 0;
       for (let i = end + 1; i < count; i++) bottomSpacer += getHeight(i);
       setRange((prev) =>
-        idx >= prev.start && idx <= prev.end ? prev : { start, end, firstVisible: idx, topSpacer, bottomSpacer },
+        idx >= prev.start && idx <= prev.end ? prev : { start, end, firstVisible: idx, centerVisible: idx, topSpacer, bottomSpacer },
       );
       requestAnimationFrame(() => {
         // Escape for a double-quoted attribute value (not CSS.escape, which

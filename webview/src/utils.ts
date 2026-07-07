@@ -56,6 +56,10 @@ interface TokenizedMessage {
   role: string;
   providerID?: string;
   modelID?: string;
+  // Loose types: UserMessage.summary is an object, AssistantMessage.summary a
+  // boolean — we only compare against literal `true` / "compaction" below.
+  summary?: unknown;
+  mode?: string;
   tokens?: {
     input: number;
     output: number;
@@ -70,6 +74,11 @@ export function findLastAssistantWithTokens<T extends { info: TokenizedMessage }
   if (!messages) return null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const info = messages[i].info;
+    // Skip compaction summaries. Their modelID doesn't resolve against the
+    // enabled `providers` (the summarize step runs under a compaction model that
+    // isn't in the selectable list), so limit → 0 and the context indicator
+    // reads 0%. Fall back to the last real assistant turn, whose model resolves.
+    if (info.summary === true || info.mode === "compaction") continue;
     if (info.role === "assistant" && info.tokens) {
       const t = info.tokens;
       if (t.input + t.output + t.reasoning + t.cache.read + t.cache.write > 0) {
