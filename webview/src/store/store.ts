@@ -112,6 +112,7 @@ export interface AppState {
   sidebarOpen: boolean;
   rightPanelOpen: boolean;
   sidebarWidth: number;
+  sidebarHeight: number;
   rightWidth: number;
   recentPanelHidden: boolean;
   contextLegendOpen: boolean;
@@ -159,6 +160,7 @@ export interface AppState {
   reloadServer: (force?: boolean) => void;
   dismissPermissionNotice: () => void;
   setSidebarWidth: (w: number, persist?: boolean) => void;
+  setSidebarHeight: (h: number, persist?: boolean) => void;
   setRightWidth: (w: number, persist?: boolean) => void;
   enqueueMessage: (m: Omit<QueuedMessage, "id">, priority?: boolean) => void;
   removeQueuedMessage: (id: string) => void;
@@ -272,6 +274,7 @@ interface PersistedUi {
   selectedModel?: ModelSelection | null;
   selectedAgent?: string | null;
   sidebarWidth?: number;
+  sidebarHeight?: number;
   rightWidth?: number;
   recentPanelHidden?: boolean;
   contextLegendOpen?: boolean;
@@ -327,6 +330,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedModel: persistedUi.selectedModel ?? null,
   selectedAgent: persistedUi.selectedAgent ?? null,
   sidebarWidth: persistedUi.sidebarWidth ?? 230,
+  sidebarHeight: persistedUi.sidebarHeight ?? 260,
   rightWidth: persistedUi.rightWidth ?? 250,
   recentPanelHidden: persistedUi.recentPanelHidden ?? false,
   contextLegendOpen: persistedUi.contextLegendOpen ?? false,
@@ -351,6 +355,10 @@ export const useStore = create<AppState>((set, get) => ({
   setSidebarWidth: (w, persist = true) => {
     if (persist) savePersistedUi({ sidebarWidth: w });
     set({ sidebarWidth: w });
+  },
+  setSidebarHeight: (h, persist = true) => {
+    if (persist) savePersistedUi({ sidebarHeight: h });
+    set({ sidebarHeight: h });
   },
   setRightWidth: (w, persist = true) => {
     if (persist) savePersistedUi({ rightWidth: w });

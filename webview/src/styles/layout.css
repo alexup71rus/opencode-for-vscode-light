@@ -254,3 +254,68 @@
   opacity: 0.6;
 }
 
+/* ===== Narrow mode (< 768px) ===== */
+/* Driven by the `is-narrow` class on `.app-root`, set from a ResizeObserver in
+ * App.tsx. The left session list becomes a resizable top panel; the right
+ * Inspect panel becomes a right-edge overlay with a dimmed backdrop. Desktop
+ * (no `.is-narrow`) keeps the original 3-column push layout untouched. */
+
+.app-root.is-narrow .app-body {
+  flex-direction: column;
+  position: relative;
+}
+
+/* Left session list → top panel: full width, height from the inline style
+ * (sidebarHeight), stacked above the chat which fills the rest. */
+.app-root.is-narrow .app-sidebar {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+/* In the column layout the chat must be allowed to shrink so its inner
+ * message list scrolls instead of overflowing the body. */
+.app-root.is-narrow .app-main {
+  min-height: 0;
+}
+
+/* Vertical resize handle at the bottom edge of the top panel. */
+.resize-handle-v {
+  flex: 0 0 7px;
+  width: 100%;
+  cursor: row-resize;
+}
+
+.resize-handle-v::before {
+  top: 50%;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+.resize-handle-v:hover::before,
+.resize-handle-v:active::before {
+  width: auto;
+  height: 2px;
+}
+
+/* Right Inspect → overlay pinned to the right edge, drawn over the chat. */
+.app-root.is-narrow .app-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 85%);
+  z-index: 6;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.35);
+}
+
+.panel-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.4);
+}
+

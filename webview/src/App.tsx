@@ -48,8 +48,10 @@ export default function App(): React.ReactElement {
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
   const sidebarWidth = useStore((s) => s.sidebarWidth);
+  const sidebarHeight = useStore((s) => s.sidebarHeight);
   const rightWidth = useStore((s) => s.rightWidth);
   const setSidebarWidth = useStore((s) => s.setSidebarWidth);
+  const setSidebarHeight = useStore((s) => s.setSidebarHeight);
   const setRightWidth = useStore((s) => s.setRightWidth);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const toggleRightPanel = useStore((s) => s.toggleRightPanel);
@@ -83,16 +85,44 @@ export default function App(): React.ReactElement {
   const headerTitle = activeIsChild ? childTitle : activeSession?.title;
 
   const dragRef = useRef<null | (() => void)>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  const startResize = (side: "left" | "right") => (e: React.MouseEvent) => {
+  // Width-threshold detection — single source of truth for both CSS (the
+  // `is-narrow` class) and JS (resize axis, backdrop). 768 is independent of the
+  // 800px `narrow` flag in ChatInput (that one only toggles compact selectors).
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setIsNarrow(w < 768);
+    });
+    ro.observe(el);
+    setIsNarrow(el.clientWidth < 768);
+    return () => ro.disconnect();
+  }, []);
+
+  // Shared pointer-drag for every resize handle. A drag captures its starting
+  // value, maps the pointer delta on one axis to a new (clamped) value applied
+  // live without persisting, and persists once on mouse-up (avoids a
+  // localStorage write per pixel). `dragRef` lets an unmount mid-drag release
+  // the window listeners and body style.
+  const startDrag = (
+    opts: {
+      axis: "x" | "y";
+      cursor: string;
+      start: number;
+      toValue: (start: number, delta: number) => number;
+      commit: (value: number, persist: boolean) => void;
+      readCurrent: () => number;
+    },
+  ) => (e: React.MouseEvent) => {
     e.preventDefault();
-    const startX = e.clientX;
-    const startW = side === "left" ? sidebarWidth : rightWidth;
-    const setter = side === "left" ? setSidebarWidth : setRightWidth;
+    const startPos = opts.axis === "x" ? e.clientX : e.clientY;
     const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startX;
-      const next = side === "left" ? startW + dx : startW - dx;
-      setter(Math.max(160, Math.min(640, Math.round(next))), false);
+      const pos = opts.axis === "x" ? ev.clientX : ev.clientY;
+      opts.commit(opts.toValue(opts.start, pos - startPos), false);
     };
     const cleanup = () => {
       window.removeEventListener("mousemove", onMove);
@@ -102,17 +132,42 @@ export default function App(): React.ReactElement {
       dragRef.current = null;
     };
     const onUp = () => {
-      // Persist once at the end of the drag (avoid localStorage-per-pixel).
-      const finalW = side === "left" ? useStore.getState().sidebarWidth : useStore.getState().rightWidth;
-      setter(finalW, true);
+      opts.commit(opts.readCurrent(), true);
       cleanup();
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = opts.cursor;
     document.body.style.userSelect = "none";
     dragRef.current = cleanup;
   };
+
+  const clampWidth = (w: number) => Math.max(160, Math.min(640, Math.round(w)));
+
+  // Narrow-mode top-panel height, clamped to 20–70% of the webview height.
+  const startResizeHeight = startDrag({
+    axis: "y",
+    cursor: "row-resize",
+    start: sidebarHeight,
+    toValue: (start, delta) => {
+      const viewH = rootRef.current?.clientHeight ?? window.innerHeight;
+      return Math.max(Math.round(viewH * 0.2), Math.min(Math.round(viewH * 0.7), Math.round(start + delta)));
+    },
+    commit: setSidebarHeight,
+    readCurrent: () => useStore.getState().sidebarHeight,
+  });
+
+  const startResize = (side: "left" | "right") =>
+    startDrag({
+      axis: "x",
+      cursor: "col-resize",
+      start: side === "left" ? sidebarWidth : rightWidth,
+      // Left handle grows with rightward drag; right handle grows leftward.
+      toValue: (start, delta) => clampWidth(side === "left" ? start + delta : start - delta),
+      commit: side === "left" ? setSidebarWidth : setRightWidth,
+      readCurrent: () =>
+        side === "left" ? useStore.getState().sidebarWidth : useStore.getState().rightWidth,
+    });
 
   // If a panel unmounts mid-drag, release the listeners + body style.
   useEffect(() => () => dragRef.current?.(), []);
@@ -259,7 +314,7 @@ export default function App(): React.ReactElement {
   const isStarting = serverStatus === "starting";
 
   return (
-    <div className="app-root">
+    <div className={`app-root ${isNarrow ? "is-narrow" : ""}`} ref={rootRef}>
       <header className="app-header">
         <button
           className={`header-toggle ${sidebarOpen ? "active" : ""}`}
@@ -365,13 +420,16 @@ export default function App(): React.ReactElement {
       <div className="app-body">
         {sidebarOpen ? (
           <>
-            <aside className="app-sidebar" style={{ flexBasis: sidebarWidth }}>
+            <aside
+              className="app-sidebar"
+              style={isNarrow ? { height: sidebarHeight } : { flexBasis: sidebarWidth }}
+            >
               <SessionList />
             </aside>
             <div
-              className="resize-handle"
+              className={isNarrow ? "resize-handle resize-handle-v" : "resize-handle"}
               title="Drag to resize"
-              onMouseDown={startResize("left")}
+              onMouseDown={isNarrow ? startResizeHeight : startResize("left")}
             />
           </>
         ) : null}
@@ -423,12 +481,24 @@ export default function App(): React.ReactElement {
 
         {rightPanelOpen && activeSessionId && (
           <>
-            <div
-              className="resize-handle"
-              title="Drag to resize"
-              onMouseDown={startResize("right")}
-            />
-            <aside className="app-right" style={{ flexBasis: rightWidth }}>
+            {isNarrow && (
+              <div
+                className="panel-backdrop"
+                aria-hidden="true"
+                onClick={toggleRightPanel}
+              />
+            )}
+            {!isNarrow && (
+              <div
+                className="resize-handle"
+                title="Drag to resize"
+                onMouseDown={startResize("right")}
+              />
+            )}
+            <aside
+              className="app-right"
+              style={isNarrow ? undefined : { flexBasis: rightWidth }}
+            >
               <div className="app-right-head">
                 <span className="app-right-title">Inspect</span>
                 <button
