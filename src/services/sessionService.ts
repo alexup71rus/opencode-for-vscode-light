@@ -640,11 +640,11 @@ export class SessionService extends EventEmitter {
     response: string;
   }): void => {
     const { sessionID, permissionID } = payload;
-    const list = this.permissionsBySession.get(sessionID);
-    if (list) {
-      this.permissionsBySession.set(sessionID, list.filter((p) => p.id !== permissionID));
-    }
-    this.emit("permissionReplied", { sessionId: sessionID, permissionID });
+    // Delegate to clearPermission so the SSE path and the local-reply path
+    // share the same no-op guard (skip if already gone) and avoid a double
+    // emit when the server's permission.replied arrives after our own
+    // optimistic removal in replyPermission().
+    this.clearPermission(sessionID, permissionID);
   };
 
   private handleTodoUpdated = (payload: { sessionID: string; todos: Todo[] }): void => {
