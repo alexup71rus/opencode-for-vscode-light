@@ -341,15 +341,40 @@
 
 /* ===== Header title / status (rework) ===== */
 
-.header-yolo {
-  font-size: 9px;
+.meta-yolo {
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   padding: 2px 6px;
-  border-radius: 8px;
-  background: var(--vscode-charts-red, #f85149);
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity var(--opencode-ease), background var(--opencode-ease),
+    border-color var(--opencode-ease), color var(--opencode-ease);
+}
+
+.meta-yolo:hover {
+  opacity: 0.8;
+  background: var(--vscode-list-hoverBackground);
+}
+
+.chat-input-wrap:focus-within .meta-yolo {
+  opacity: 0.7;
+}
+
+.meta-yolo.on {
+  opacity: 1;
   color: #fff;
+  background: var(--vscode-charts-red, #f85149);
+  border-color: var(--vscode-charts-red, #f85149);
+}
+
+.meta-yolo.on:hover {
   opacity: 0.9;
+  background: var(--vscode-charts-red, #f85149);
 }
 
 /* ===== Settings toggle row (YOLO) ===== */

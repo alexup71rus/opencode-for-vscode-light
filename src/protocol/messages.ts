@@ -67,7 +67,6 @@ export type ExtensionToWebview =
   | { type: "todos"; sessionId: string; todos: Todo[] }
   | { type: "mcpStatus"; servers: Record<string, McpServerStatus> }
   | { type: "lspStatus"; servers: LspStatusInfo[] }
-  | { type: "stats"; totalCost: number; totalTokens: { input: number; output: number; reasoning: number } }
   | { type: "context"; filePath: string | null; fileName: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "filesExist"; results: Record<string, boolean> }

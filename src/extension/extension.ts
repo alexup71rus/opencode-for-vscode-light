@@ -13,7 +13,6 @@ import { EventStream } from "../bridge/eventStream";
 import { SessionService } from "../services/sessionService";
 import { ModelService } from "../services/modelService";
 import { AgentService } from "../services/agentService";
-import { StatsService } from "../services/statsService";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let serverManager: ServerManager | undefined;
@@ -127,7 +126,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
 
-    const statsService = new StatsService();
     const contextProvider = new ContextProvider();
     const diffProvider = new DiffDocumentProvider();
 
@@ -184,7 +182,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       sessionService,
       modelService,
       agentService,
-      statsService,
       contextProvider,
       client,
       eventStream,

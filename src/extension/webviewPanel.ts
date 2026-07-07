@@ -11,7 +11,6 @@ import type { OpenCodeClient } from "../bridge/openCodeClient";
 import type { SessionService } from "../services/sessionService";
 import type { ModelService } from "../services/modelService";
 import type { AgentService } from "../services/agentService";
-import type { StatsService } from "../services/statsService";
 import type { EventStream } from "../bridge/eventStream";
 import { ContextProvider } from "./contextProvider";
 import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
@@ -73,7 +72,6 @@ export class WebviewPanelManager {
     private readonly sessionService: SessionService,
     private readonly modelService: ModelService,
     private readonly agentService: AgentService,
-    private readonly statsService: StatsService,
     private readonly contextProvider: ContextProvider,
     private readonly client: OpenCodeClient,
     private readonly eventStream: EventStream,
@@ -723,16 +721,10 @@ export class WebviewPanelManager {
 
     this.addListener(session, "sessionsChanged", () => {
       const sessions = this.sessionService.getSessions();
-      this.statsService.update(sessions);
       this.postMessage({
         type: "state",
         sessions,
         activeSessionId: this.sessionService.getActiveSessionId(),
-      });
-      this.postMessage({
-        type: "stats",
-        totalCost: this.statsService.getTotalCost(),
-        totalTokens: this.statsService.getTotalTokens(),
       });
     });
 
@@ -949,7 +941,6 @@ export class WebviewPanelManager {
 
   private pushInitialState(): void {
     const sessions: SessionWithMeta[] = this.sessionService.getSessions();
-    this.statsService.update(sessions);
     this.postMessage({
       type: "state",
       sessions,
@@ -963,11 +954,6 @@ export class WebviewPanelManager {
     this.postMessage({
       type: "agents",
       agents: this.agentService.getAgents(),
-    });
-    this.postMessage({
-      type: "stats",
-      totalCost: this.statsService.getTotalCost(),
-      totalTokens: this.statsService.getTotalTokens(),
     });
     if (this.currentConfig) {
       this.postMessage({ type: "config", config: this.currentConfig });

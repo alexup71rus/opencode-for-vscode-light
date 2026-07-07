@@ -58,8 +58,9 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const activeFileName = useStore((s) => s.activeFileName);
   const selection = useStore((s) => s.selection);
   const status = useStore((s) => s.sessionStatus[sessionId]);
-  const totalTokens = useStore((s) => s.totalTokens);
-  const totalCost = useStore((s) => s.totalCost);
+  const sessionMeta = useStore((s) => s.sessions.find((x) => x.id === sessionId));
+  const autoApprove = useStore((s) => s.settings.autoApprove);
+  const updateSettings = useStore((s) => s.updateSettings);
   const commands = useStore((s) => s.commands);
   const skills = useStore((s) => s.skills);
   const pinnedSlash = useStore((s) => s.pinnedSlash);
@@ -576,7 +577,11 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     if (el) setCursorPos(el.selectionStart ?? 0);
   };
 
-  const tokenTotal = totalTokens.input + totalTokens.output + totalTokens.reasoning;
+  const sessionCost = sessionMeta?.cost ?? 0;
+  const sessionTokens = sessionMeta?.tokens;
+  const tokenTotal = sessionTokens
+    ? sessionTokens.input + sessionTokens.output + sessionTokens.reasoning
+    : 0;
   const showCharCount = text.length > 0;
   const lineCount = Math.max(1, text.split("\n").length);
 
@@ -843,13 +848,27 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
             {narrow && <ModelSelector compact />}
             {narrow && <VariantSelector />}
             <AgentSelector compact />
-            {totalCost > 0 && (
-              <span className="meta-chip" title="Total cost (all sessions)">
-                {formatCost(totalCost)}
+            <button
+              type="button"
+              className={`meta-yolo ${autoApprove ? "on" : ""}`}
+              title={
+                autoApprove
+                  ? "YOLO mode is ON — every tool request is auto-approved. Click to turn off."
+                  : "YOLO mode is off — tool requests need approval. Click to auto-approve everything."
+              }
+              aria-label={autoApprove ? "YOLO mode on, click to turn off" : "YOLO mode off, click to turn on"}
+              aria-pressed={autoApprove}
+              onClick={() => updateSettings({ autoApprove: !autoApprove })}
+            >
+              YOLO
+            </button>
+            {sessionCost > 0 && (
+              <span className="meta-chip" title="Cost (this session)">
+                {formatCost(sessionCost)}
               </span>
             )}
             {tokenTotal > 0 && (
-              <span className="meta-chip" title="Total tokens (all sessions)">
+              <span className="meta-chip" title="Tokens (this session)">
                 {formatTokenCount(tokenTotal)} tokens
               </span>
             )}

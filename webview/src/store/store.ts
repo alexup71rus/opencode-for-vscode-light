@@ -107,9 +107,6 @@ export interface AppState {
   activeFileName: string | null;
   selection: string | null;
 
-  totalCost: number;
-  totalTokens: { input: number; output: number; reasoning: number };
-
   sessionStatus: Record<string, SessionStatusInfo>;
 
   sidebarOpen: boolean;
@@ -255,8 +252,6 @@ const initialState = {
   activeFilePath: null as string | null,
   activeFileName: null as string | null,
   selection: null as string | null,
-  totalCost: 0,
-  totalTokens: { input: 0, output: 0, reasoning: 0 },
   sessionStatus: {} as Record<string, SessionStatusInfo>,
   queuedMessages: [] as QueuedMessage[],
   diffModal: null as AppState["diffModal"],
@@ -653,10 +648,6 @@ export const useStore = create<AppState>((set, get) => ({
 
       case "clearPermissionNotice":
         set({ permissionNotice: null });
-        break;
-
-      case "stats":
-        set({ totalCost: msg.totalCost, totalTokens: msg.totalTokens });
         break;
 
       case "context":

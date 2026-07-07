@@ -307,15 +307,6 @@ export default function App(): React.ReactElement {
           >
             <span className="header-status-dot" aria-hidden="true" />
           </span>
-          {autoApprove && (
-            <span
-              className="header-yolo"
-              title="YOLO mode is on — tool requests are auto-approved (per request)"
-              aria-label="YOLO mode on"
-            >
-              YOLO
-            </span>
-          )}
           <button
             className={`header-toggle ${rightPanelOpen ? "active" : ""}`}
             title={rightPanelOpen ? "Hide inspect panel" : "Show inspect panel"}

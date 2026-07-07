@@ -441,7 +441,6 @@ export type ExtensionToWebview =
   | { type: "lspStatus"; servers: LspStatusInfo[] }
   | { type: "config"; config: ProjectConfig }
   | { type: "permissionRules"; snapshot: PermissionRulesSnapshot }
-  | { type: "stats"; totalCost: number; totalTokens: { input: number; output: number; reasoning: number } }
   | { type: "context"; filePath: string | null; fileName: string | null; selection: string | null; diagnostics: AttachedContext["diagnostics"] | null }
   | { type: "fileDiffContent"; filePath: string; before: string; after: string; label: string; error?: string }
   | { type: "filesExist"; results: Record<string, boolean> }
