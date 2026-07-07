@@ -31,6 +31,10 @@
       {
         "command": "opencode.newSession",
         "title": "OCVS: New Session"
+      },
+      {
+        "command": "opencode.openErrorLog",
+        "title": "OCVS: Open Error Log"
       }
     ],
     "configuration": {
@@ -60,6 +64,11 @@
           "type": "string",
           "default": "127.0.0.1",
           "description": "Hostname for the spawned opencode server."
+        },
+        "opencode.logToFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Write errors and SSE disconnects to a persistent log file (survives VS Code reload). The file lives in the extension's global storage."
         }
       }
     }

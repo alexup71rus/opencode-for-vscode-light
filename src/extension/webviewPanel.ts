@@ -12,6 +12,7 @@ import type { SessionService } from "../services/sessionService";
 import type { ModelService } from "../services/modelService";
 import type { AgentService } from "../services/agentService";
 import type { EventStream } from "../bridge/eventStream";
+import { FileLogger } from "../services/fileLogger";
 import { ContextProvider } from "./contextProvider";
 import { openFileDiff, reconstructFileDiff, type DiffDocumentProvider } from "./diffProvider";
 import { pickWriteTarget, writePermissionRule, removePermissionRule, loadPermissionRules, configFilePath, globalConfigDir, type WriteScope } from "./permissionConfig";
@@ -66,6 +67,7 @@ export class WebviewPanelManager {
   // how long the FS layer takes to deliver it (slow/network/WSL/macOS-load).
   private readonly pendingSelfWrites = new Map<string, number>();
   private permissionReloadTimer: NodeJS.Timeout | undefined;
+  private fileLogger: FileLogger;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -84,6 +86,10 @@ export class WebviewPanelManager {
     // restart — the user must do it manually). May reject on respawn failure.
     private readonly restartManagedServer: () => Promise<boolean>,
   ) {
+    this.fileLogger = new FileLogger(
+      context.globalStorageUri.fsPath,
+      vscode.workspace.getConfiguration("opencode").get("logToFile", true),
+    );
     this.loadConfig();
   }
 
@@ -148,6 +154,12 @@ export class WebviewPanelManager {
     if (this.panel) {
       this.panel.dispose();
     }
+  }
+
+  async openErrorLog(): Promise<void> {
+    const filePath = this.fileLogger.getFilePath();
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+    await vscode.window.showTextDocument(doc, { preview: false });
   }
 
   dispose(): void {
@@ -847,6 +859,7 @@ export class WebviewPanelManager {
     });
 
     this.addListener(this.eventStream, "stream.error", () => {
+      this.fileLogger.log("SSE  stream connection lost");
       this.postServerStatus("error", "Stream connection lost, retrying…");
     });
 
@@ -1009,6 +1022,7 @@ export class WebviewPanelManager {
   private reportError(err: unknown, action: string): void {
     const message = err instanceof Error ? err.message : String(err);
     this.output.appendLine(`[opencode] failed to ${action}: ${message}`);
+    this.fileLogger.error(err, action);
     this.postMessage({ type: "error", message: `failed to ${action}: ${message}` });
     vscode.window.showErrorMessage(`OCVS: failed to ${action}.`);
   }

@@ -24,5 +24,13 @@ export function registerCommands(
         vscode.window.showErrorMessage(`OCVS: failed to create session: ${errorMessage(err)}`);
       }
     }),
+
+    vscode.commands.registerCommand("opencode.openErrorLog", async () => {
+      try {
+        await panelManager.openErrorLog();
+      } catch (err) {
+        vscode.window.showErrorMessage(`OCVS: ${errorMessage(err)}`);
+      }
+    }),
   );
 }
