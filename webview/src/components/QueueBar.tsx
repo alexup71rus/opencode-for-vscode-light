@@ -3,9 +3,11 @@ import { useStore, type QueuedMessage } from "../store/store";
 import { postMessage } from "../api/vscodeApi";
 
 export function QueueBar(): React.ReactElement | null {
-  const queuedMessages = useStore((s) => s.queuedMessages);
-  const removeQueuedMessage = useStore((s) => s.removeQueuedMessage);
   const sessionId = useStore((s) => s.activeSessionId);
+  const queuedMessages = useStore((s) =>
+    sessionId ? (s.queuedMessagesBySession[sessionId] ?? []) : [],
+  );
+  const removeQueuedMessage = useStore((s) => s.removeQueuedMessage);
   const setDraft = useStore((s) => s.setDraft);
   const [expanded, setExpanded] = useState(false);
 
@@ -26,14 +28,14 @@ export function QueueBar(): React.ReactElement | null {
       options: q.options,
       attachments: q.attachments,
     });
-    removeQueuedMessage(q.id);
+    removeQueuedMessage(sessionId, q.id);
   };
 
   // Hand the message back to the composer for editing.
   const editQueued = (q: QueuedMessage) => {
     if (!sessionId) return;
     setDraft(sessionId, q.text);
-    removeQueuedMessage(q.id);
+    removeQueuedMessage(sessionId, q.id);
   };
 
   const actions = (q: QueuedMessage) => (
@@ -81,7 +83,7 @@ export function QueueBar(): React.ReactElement | null {
                 className="queue-item-remove"
                 title="Remove from queue"
                 aria-label="Remove from queue"
-                onClick={() => removeQueuedMessage(q.id)}
+                onClick={() => sessionId && removeQueuedMessage(sessionId, q.id)}
               >
                 ✕
               </button>
@@ -111,7 +113,7 @@ export function QueueBar(): React.ReactElement | null {
           className="queue-item-remove"
           title="Remove from queue"
           aria-label="Remove from queue"
-          onClick={() => removeQueuedMessage(first.id)}
+          onClick={() => sessionId && removeQueuedMessage(sessionId, first.id)}
         >
           ✕
         </button>

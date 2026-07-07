@@ -71,6 +71,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const attachResults = useStore((s) => s.attachResults);
   const enqueueMessage = useStore((s) => s.enqueueMessage);
   const sendOnEnter = useStore((s) => s.settings.sendOnEnter);
+  const pendingImageInsert = useStore((s) => s.pendingImageInsert);
+  const clearPendingImageInsert = useStore((s) => s.clearPendingImageInsert);
   const isBusy = status?.type === "busy";
   const hasQuestion = useStore(
     (s) => s.pendingQuestions.some((q) => q.sessionID === sessionId),
@@ -131,6 +133,36 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
       setSelTarget(null);
     }
   }, [selTarget, text]);
+
+  // Consume image attachments produced by paste / picker: insert each as an
+  // `@<path>` text token (preserving order: text → image → text → image) and
+  // track it in mentionAttachments with the correct image mime so opencode
+  // treats it as an image FilePartInput. Reuses the same send pipeline as
+  // @-file mentions — no separate attachment channel.
+  useEffect(() => {
+    if (!pendingImageInsert || pendingImageInsert.length === 0) return;
+    let next = text;
+    for (const it of pendingImageInsert) {
+      const tag = "@" + it.path + " ";
+      next = next + (next && !next.endsWith(" ") ? " " : "") + tag;
+    }
+    setText(next);
+    setCursorPos(next.length);
+    setSelTarget(next.length);
+    setMentionAttachments((prev) => {
+      const add = pendingImageInsert
+        .filter((it) => !prev.some((a) => a.url === it.path))
+        .map((it) => ({
+          url: it.path,
+          filename: it.path.split(/[\\/]/).pop() ?? it.path,
+          mime: it.mime,
+        }));
+      return add.length ? [...prev, ...add] : prev;
+    });
+    setAttachOpen(false);
+    clearPendingImageInsert();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [pendingImageInsert]);
 
   const slashQuery = useMemo(() => {
     if (!text.startsWith("/")) return null;
@@ -369,7 +401,7 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
     if (isBusy) {
       // Generation in progress: don't dispatch immediately. Queue the message
       // client-side; it is injected at the next step boundary (see ChatView).
-      enqueueMessage({
+      enqueueMessage(sessionId, {
         text: trimmed,
         context: buildContext(),
         options: buildSendOptions(),
@@ -636,6 +668,21 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
                   )}
                 </div>
                 <div className="attach-section">
+                  <div className="attach-section-title">Image</div>
+                  <button
+                    className="attach-item"
+                    title="Pick image file(s) to attach as @path references"
+                    onClick={() => {
+                      setAttachOpen(false);
+                      postMessage({ type: "pickImages" });
+                    }}
+                  >
+                    <span className="attach-check" aria-hidden="true" />
+                    <span className="attach-item-icon">🖼</span>
+                    <span className="attach-item-label">Browse for image…</span>
+                  </button>
+                </div>
+                <div className="attach-section">
                   <div className="attach-section-title">Attach a file</div>
                   <input
                     className="attach-search"
@@ -792,6 +839,33 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
               onChange={(e) => {
                 setText(e.target.value);
                 setCursorPos(e.target.selectionStart ?? 0);
+              }}
+              onPaste={(e) => {
+                // Detect an image in the clipboard (screenshot, copied image)
+                // and route it to the extension to be saved as a file, then
+                // inserted as an @path mention. Prevents dumping raw image
+                // bytes or a bogus filename into the textarea.
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                let imgItem: DataTransferItem | null = null;
+                for (const it of items) {
+                  if (it.kind === "file" && it.type.startsWith("image/")) {
+                    imgItem = it;
+                    break;
+                  }
+                }
+                if (!imgItem) return;
+                e.preventDefault();
+                const file = imgItem.getAsFile();
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result;
+                  if (typeof dataUrl === "string") {
+                    postMessage({ type: "savePastedImage", dataUrl, mime: file.type });
+                  }
+                };
+                reader.readAsDataURL(file);
               }}
               onKeyDown={onKeyDown}
               onSelect={syncCursor}

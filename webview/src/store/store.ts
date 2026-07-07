@@ -80,6 +80,9 @@ export interface AppState {
   attachResults: string[];
   mentionFileQuery: string | null;
   attachFileQuery: string | null;
+  // Transient: images produced by paste/picker, awaiting insertion into the
+  // composer as @path mentions. ChatInput consumes and clears it.
+  pendingImageInsert: { path: string; mime: string }[] | null;
   skills: SkillInfo[];
   todosBySession: Record<string, Todo[]>;
   mcpStatus: Record<string, McpServerStatus>;
@@ -119,7 +122,9 @@ export interface AppState {
   contextLegendOpen: boolean;
   pinnedSlash: string[];
   changesBaseline: Record<string, string>;
-  queuedMessages: QueuedMessage[];
+  // Per-session queue: messages enqueued while a session is busy are kept
+  // separately for each session, so switching chats no longer drops the queue.
+  queuedMessagesBySession: Record<string, QueuedMessage[]>;
   suppressQueueOnIdle: boolean;
   diffModal:
     | null
@@ -164,10 +169,10 @@ export interface AppState {
   setSidebarWidth: (w: number, persist?: boolean) => void;
   setSidebarHeight: (h: number, persist?: boolean) => void;
   setRightWidth: (w: number, persist?: boolean) => void;
-  enqueueMessage: (m: Omit<QueuedMessage, "id">, priority?: boolean) => void;
-  removeQueuedMessage: (id: string) => void;
-  shiftQueuedMessage: () => QueuedMessage | undefined;
-  clearQueue: () => void;
+  enqueueMessage: (sessionId: string, m: Omit<QueuedMessage, "id">, priority?: boolean) => void;
+  removeQueuedMessage: (sessionId: string, id: string) => void;
+  shiftQueuedMessage: (sessionId: string) => QueuedMessage | undefined;
+  clearPendingImageInsert: () => void;
   reset: () => void;
 }
 
@@ -238,6 +243,7 @@ const initialState = {
   attachResults: [] as string[],
   mentionFileQuery: null as string | null,
   attachFileQuery: null as string | null,
+  pendingImageInsert: null as { path: string; mime: string }[] | null,
   skills: [] as SkillInfo[],
   todosBySession: {} as Record<string, Todo[]>,
   mcpStatus: {} as Record<string, McpServerStatus>,
@@ -257,7 +263,7 @@ const initialState = {
   activeFileName: null as string | null,
   selection: null as string | null,
   sessionStatus: {} as Record<string, SessionStatusInfo>,
-  queuedMessages: [] as QueuedMessage[],
+  queuedMessagesBySession: {} as Record<string, QueuedMessage[]>,
   suppressQueueOnIdle: false,
   diffModal: null as AppState["diffModal"],
   allFilesDiffModal: null as AppState["allFilesDiffModal"],
@@ -401,23 +407,35 @@ export const useStore = create<AppState>((set, get) => ({
     if (paths.length === 0) return;
     postMessage({ type: "checkFilesExist", paths });
   },
-  enqueueMessage: (m, priority) => {
+  enqueueMessage: (sessionId, m, priority) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    set((s) => ({
-      queuedMessages: priority ? [{ ...m, id }, ...s.queuedMessages] : [...s.queuedMessages, { ...m, id }],
-    }));
+    set((s) => {
+      const cur = s.queuedMessagesBySession[sessionId] ?? [];
+      const next = priority ? [{ ...m, id }, ...cur] : [...cur, { ...m, id }];
+      return { queuedMessagesBySession: { ...s.queuedMessagesBySession, [sessionId]: next } };
+    });
   },
-  removeQueuedMessage: (id) => {
-    set((s) => ({ queuedMessages: s.queuedMessages.filter((q) => q.id !== id) }));
+  removeQueuedMessage: (sessionId, id) => {
+    set((s) => {
+      const cur = s.queuedMessagesBySession[sessionId];
+      if (!cur) return {};
+      return { queuedMessagesBySession: { ...s.queuedMessagesBySession, [sessionId]: cur.filter((q) => q.id !== id) } };
+    });
   },
-  shiftQueuedMessage: () => {
-    const first = get().queuedMessages[0];
+  shiftQueuedMessage: (sessionId) => {
+    const cur = get().queuedMessagesBySession[sessionId] ?? [];
+    const first = cur[0];
     if (first) {
-      set((s) => ({ queuedMessages: s.queuedMessages.slice(1) }));
+      set((s) => ({
+        queuedMessagesBySession: {
+          ...s.queuedMessagesBySession,
+          [sessionId]: (s.queuedMessagesBySession[sessionId] ?? []).slice(1),
+        },
+      }));
     }
     return first;
   },
-  clearQueue: () => set({ queuedMessages: [] }),
+  clearPendingImageInsert: () => set({ pendingImageInsert: null }),
   toggleRightPanel: () => {
     set((s) => {
       const next = !s.rightPanelOpen;
@@ -614,6 +632,18 @@ export const useStore = create<AppState>((set, get) => ({
           if (msg.query === get().attachFileQuery) {
             set({ attachResults: msg.files });
           }
+        }
+        break;
+      }
+
+      case "imageSaved": {
+        set({ pendingImageInsert: [{ path: msg.path, mime: msg.mime }] });
+        break;
+      }
+
+      case "imagesPicked": {
+        if (msg.items.length > 0) {
+          set({ pendingImageInsert: msg.items.map((i) => ({ path: i.path, mime: i.mime })) });
         }
         break;
       }

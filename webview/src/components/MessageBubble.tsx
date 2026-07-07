@@ -295,14 +295,10 @@ function ReasoningBlock({ part }: { part: Extract<Part, { type: "reasoning" }> }
   const expandDefault = useStore((s) => s.settings.expandThinking);
   const [open, setOpen] = useState(expandDefault);
   const streaming = !part.time.end;
-  // Collapsed preview shows the LAST ~3 lines (the freshest thoughts), with a
-  // fade at the top edge to signal truncation. JS-truncating is more reliable
-  // than CSS overflow for long streaming text.
-  const collapsedPreview = (() => {
-    const lines = part.text.split("\n");
-    if (lines.length <= 3) return part.text;
-    return "…\n" + lines.slice(-3).join("\n");
-  })();
+  // Collapsed state uses CSS to clip to a stable height (see .reasoning-
+  // collapsed): the full text is rendered, anchored to the bottom, and the
+  // top is clipped with a fade. This avoids the height jumps and content
+  // jitter that JS line-truncation produced during streaming.
   return (
     <div className="reasoning-block">
       <button
@@ -318,7 +314,7 @@ function ReasoningBlock({ part }: { part: Extract<Part, { type: "reasoning" }> }
         className={`reasoning-text${open ? "" : " reasoning-collapsed"}`}
         title={open ? undefined : "Click header to expand"}
       >
-        {open ? part.text : collapsedPreview}
+        {part.text}
       </div>
     </div>
   );

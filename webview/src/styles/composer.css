@@ -58,6 +58,10 @@
   background: var(--vscode-editor-background);
   border-top: 1px solid var(--vscode-panel-border, transparent);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+  /* Let wheel events over the empty padding/side-gutters pass through to the
+     chat beneath, so the user can scroll-read while the modal is up. The
+     inner card re-enables interaction for itself. */
+  pointer-events: none;
 }
 
 .question-overlay-inner {
@@ -77,6 +81,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  pointer-events: auto;
 }
 
 .question-request-head {
@@ -351,6 +356,8 @@
   background: var(--vscode-editor-background);
   border-top: 1px solid var(--vscode-panel-border, transparent);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+  /* See .question-overlay: pass wheel through on empty areas. */
+  pointer-events: none;
 }
 
 .permission-overlay-inner {
@@ -370,6 +377,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  pointer-events: auto;
 }
 
 .permission-request-head {

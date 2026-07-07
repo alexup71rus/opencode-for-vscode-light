@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import * as os from "os";
 import * as path from "path";
-import { stat } from "fs/promises";
+import { stat, mkdir, writeFile, appendFile, copyFile } from "fs/promises";
 import { join } from "path";
 import type { EventEmitter } from "events";
 
@@ -195,6 +195,103 @@ export class WebviewPanelManager {
       selection: context.selection ?? null,
       diagnostics: context.diagnostics ?? null,
     });
+  }
+
+  // ===== Image attachments =====
+  // Pasted/picked images are written into <workdir>/.ocvs/ and referenced in
+  // the message by a short RELATIVE path (e.g. @.ocvs/img-...png). A relative
+  // path is read by the opencode server the same way as any @-file mention,
+  // which avoids the absolute-path resolution risk and keeps the path short in
+  // the chat text. .ocvs/ is added to .gitignore on first use so pasted images
+  // don't pollute git status.
+
+  private static MIME_TO_EXT: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+  };
+
+  private extForMime(mime: string): string {
+    return WebviewPanelManager.MIME_TO_EXT[mime] ?? "png";
+  }
+
+  private mimeForExt(ext: string): string {
+    switch (ext) {
+      case ".png": return "image/png";
+      case ".jpg":
+      case ".jpeg": return "image/jpeg";
+      case ".gif": return "image/gif";
+      case ".webp": return "image/webp";
+      default: return "application/octet-stream";
+    }
+  }
+
+  private async ensureAttachmentsDir(): Promise<string> {
+    const dir = join(this.client.workdirPath, ".ocvs");
+    await mkdir(dir, { recursive: true });
+    await this.ensureGitignore();
+    return dir;
+  }
+
+  private async ensureGitignore(): Promise<void> {
+    const gi = join(this.client.workdirPath, ".gitignore");
+    try {
+      let content = "";
+      if (existsSync(gi)) content = readFileSync(gi, "utf8");
+      const lines = content.split(/\r?\n/);
+      if (!lines.some((l) => l.trim() === ".ocvs/" || l.trim() === ".ocvs")) {
+        const prefix = content && !content.endsWith("\n") ? "\n" : "";
+        await appendFile(gi, `${prefix}.ocvs/\n`, "utf8");
+      }
+    } catch (err) {
+      this.reportError(err, "update .gitignore for .ocvs/");
+    }
+  }
+
+  private async savePastedImage(
+    dataUrl: string,
+    fallbackMime: string,
+  ): Promise<{ path: string; mime: string; filename: string }> {
+    const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
+    if (!m) throw new Error("Invalid image data URL");
+    const mime = m[1] || fallbackMime;
+    const buf = Buffer.from(m[2], "base64");
+    const ext = this.extForMime(mime);
+    const dir = await this.ensureAttachmentsDir();
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const name = `img-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.${ext}`;
+    await writeFile(join(dir, name), buf);
+    return { path: `.ocvs/${name}`, mime, filename: name };
+  }
+
+  private async pickImages(): Promise<{ path: string; mime: string; filename: string }[]> {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: true,
+      title: "Attach images",
+      filters: { Images: ["png", "jpg", "jpeg", "gif", "webp"] },
+    });
+    if (!uris || uris.length === 0) return [];
+    const workdir = this.client.workdirPath;
+    const results: { path: string; mime: string; filename: string }[] = [];
+    for (const uri of uris) {
+      const abs = uri.fsPath;
+      const ext = path.extname(abs).toLowerCase();
+      const mime = this.mimeForExt(ext);
+      let rel: string;
+      const inside = abs === workdir || abs.startsWith(workdir + path.sep);
+      if (inside) {
+        rel = path.relative(workdir, abs);
+      } else {
+        const dir = await this.ensureAttachmentsDir();
+        const name = `img-${Date.now()}-${randomBytes(4).toString("hex")}${ext}`;
+        await copyFile(abs, join(dir, name));
+        rel = `.ocvs/${name}`;
+      }
+      results.push({ path: rel.replace(/\\/g, "/"), mime, filename: path.basename(abs) });
+    }
+    return results;
   }
 
   private async handleMessage(msg: WebviewToExtension): Promise<void> {
@@ -495,6 +592,26 @@ export class WebviewPanelManager {
       }
       case "setLogToFile": {
         this.fileLogger.setEnabled(msg.enabled);
+        break;
+      }
+      case "savePastedImage": {
+        try {
+          const res = await this.savePastedImage(msg.dataUrl, msg.mime);
+          this.postMessage({ type: "imageSaved", path: res.path, mime: res.mime, filename: res.filename });
+        } catch (err) {
+          this.reportError(err, "save pasted image");
+        }
+        break;
+      }
+      case "pickImages": {
+        try {
+          const items = await this.pickImages();
+          if (items.length > 0) {
+            this.postMessage({ type: "imagesPicked", items });
+          }
+        } catch (err) {
+          this.reportError(err, "pick images");
+        }
         break;
       }
       case "retryConnection": {

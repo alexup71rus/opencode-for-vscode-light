@@ -72,6 +72,8 @@ export type ExtensionToWebview =
   | { type: "filesExist"; results: Record<string, boolean> }
   | { type: "permissionNotice"; kind: "externalChange"; message: string }
   | { type: "clearPermissionNotice" }
+  | { type: "imageSaved"; path: string; mime: string; filename: string }
+  | { type: "imagesPicked"; items: { path: string; mime: string; filename: string }[] }
   | { type: "error"; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 
@@ -108,4 +110,6 @@ export type WebviewToExtension =
   | { type: "getPermissionRules" }
   | { type: "savePermissionRule"; rule: PermissionRule }
   | { type: "removePermissionRule"; tool: PermissionTool; pattern: string; source: "global" | "project" }
-  | { type: "reloadServer"; force?: boolean };
+  | { type: "reloadServer"; force?: boolean }
+  | { type: "savePastedImage"; dataUrl: string; mime: string }
+  | { type: "pickImages" };

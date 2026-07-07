@@ -35,6 +35,7 @@ export class SessionService extends EventEmitter {
   private readonly questions = new Map<string, QuestionRequest>();
   private questionTimer: ReturnType<typeof setInterval> | null = null;
   private openSessionToken = 0;
+  private readonly aborting = new Set<string>();
 
   constructor(client: OpenCodeClient, eventStream: EventStream) {
     super();
@@ -202,7 +203,12 @@ export class SessionService extends EventEmitter {
   }
 
   async abortSession(sessionId: string): Promise<void> {
-    await this.client.abortSession(sessionId);
+    this.aborting.add(sessionId);
+    try {
+      await this.client.abortSession(sessionId);
+    } finally {
+      setTimeout(() => this.aborting.delete(sessionId), 5_000);
+    }
   }
 
   async editMessage(
@@ -448,11 +454,9 @@ export class SessionService extends EventEmitter {
   private handleSessionError = (payload: { sessionID?: string; error?: unknown }): void => {
     if (!payload.sessionID) return;
     const sessionId = payload.sessionID;
-    // After a session-level error the session is no longer generating.
-    // Force the status to idle so the UI input unblocks, even if the
-    // server does not emit a subsequent session.idle event.
     this.statusBySession.set(sessionId, { type: "idle" });
     this.emit("sessionStatus", { sessionId, status: { type: "idle" } });
+    if (this.aborting.delete(sessionId)) return;
     this.emit("sessionError", { sessionId, error: payload.error });
   };
 

@@ -86,16 +86,10 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
   const status = useStore((s) => s.sessionStatus[sessionId]);
   const allSessions = useStore((s) => s.sessions);
   const shiftQueuedMessage = useStore((s) => s.shiftQueuedMessage);
-  const clearQueue = useStore((s) => s.clearQueue);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const stickToBottomRef = useRef(true);
-
-  // The queue is for the active session only — drop it on switch.
-  useEffect(() => {
-    clearQueue();
-  }, [sessionId, clearQueue]);
 
   // Inject queued messages when the agent FINISHES its whole answer — i.e. the
   // session transitions busy -> idle. A "step" is only an intermediate model
@@ -121,7 +115,7 @@ export function ChatView({ sessionId }: ChatViewProps): React.ReactElement {
         useStore.setState({ suppressQueueOnIdle: false });
         return;
       }
-      const q = shiftQueuedMessage();
+      const q = shiftQueuedMessage(sessionId);
       if (q) {
         postMessage({
           type: "sendMessage",
