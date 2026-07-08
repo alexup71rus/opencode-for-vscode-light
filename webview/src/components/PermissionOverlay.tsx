@@ -13,11 +13,6 @@ export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.
     () => all.filter((p) => p.sessionID === sessionId),
     [all, sessionId],
   );
-  // When this session is in YOLO the auto-approve effect replies instantly to
-  // every pending permission; rendering the overlay for the roundtrip window
-  // produces a flash. Suppress it entirely — the permission still flows through
-  // the store so the auto-approve effect can reply, it just never becomes
-  // visible.
   if (autoApprove || perms.length === 0) return null;
 
   const current = perms[0]!;

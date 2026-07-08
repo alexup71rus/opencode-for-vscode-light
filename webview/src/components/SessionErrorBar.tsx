@@ -4,17 +4,6 @@ interface Props {
   sessionId: string;
 }
 
-/**
- * Session-scoped status strip shown just above the composer. Surfaces two
- * things that are specific to the active chat (unlike the global app banner,
- * which is for system/connection failures):
- *
- *  - `retry`: the agent hit a transient error (e.g. network blip) and opencode
- *    is retrying the turn. Rendered as a calm "reconnecting" line so a dropped
- *    connection reads as recoverable rather than fatal.
- *  - session error: a `session.error` the server emitted for THIS session,
- *    dismissible and auto-cleared when the session next goes busy.
- */
 export function SessionErrorBar({ sessionId }: Props): React.ReactElement | null {
   const status = useStore((s) => s.sessionStatus[sessionId]);
   const error = useStore((s) => s.sessionErrors[sessionId]);

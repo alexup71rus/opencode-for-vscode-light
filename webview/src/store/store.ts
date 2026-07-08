@@ -67,14 +67,9 @@ export interface AppState {
   pendingPermissions: Permission[];
   pendingQuestions: QuestionRequest[];
 
-  // YOLO / auto-approve is per-session and intentionally NOT persisted: it
-  // auto-approves dangerous tools (bash/edit/task), so silently restoring it
-  // across a VS Code reload would be a footgun. Resets to off on reload.
+  // Per-session, in-memory only — not persisted for safety.
   autoApproveBySession: Record<string, boolean>;
 
-  // Session-scoped errors emitted by the opencode server (session.error).
-  // Kept separate from the global `errorMessage` banner (which is for
-  // system/operational failures) and surfaced above the composer instead.
   sessionErrors: Record<string, string>;
 
   providers: ProviderInfo[];

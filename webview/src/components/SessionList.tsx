@@ -51,9 +51,6 @@ export function SessionList(): React.ReactElement {
   const autoApproveBySession = useStore((s) => s.autoApproveBySession);
   const actionSessions = useMemo(() => {
     const set = new Set<string>();
-    // A session in YOLO auto-approves its permissions, which would only flash
-    // the badge for the roundtrip window; skip those. Questions always need
-    // user attention regardless of YOLO.
     for (const p of pendingPermissions) {
       if (!autoApproveBySession[p.sessionID]) set.add(p.sessionID);
     }

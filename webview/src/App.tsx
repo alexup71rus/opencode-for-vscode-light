@@ -87,6 +87,25 @@ export default function App(): React.ReactElement {
 
   const dragRef = useRef<null | (() => void)>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Reserve space above overlays so the last message stays visible.
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    const root = rootRef.current;
+    if (!overlay || !root || typeof ResizeObserver === "undefined") return;
+    const sync = () => {
+      const h = overlay.offsetHeight;
+      root.style.setProperty("--overlay-h", h > 0 ? `${h}px` : "0px");
+    };
+    const ro = new ResizeObserver(sync);
+    ro.observe(overlay);
+    sync();
+    return () => {
+      ro.disconnect();
+      root.style.setProperty("--overlay-h", "0px");
+    };
+  }, []);
 
   // Width-threshold detection — single source of truth for both CSS (the
   // `is-narrow` class) and JS (resize axis, backdrop). 768 is independent of the
@@ -183,9 +202,7 @@ export default function App(): React.ReactElement {
     postMessage({ type: "setLogToFile", enabled: useStore.getState().settings.logToFile });
   }, []);
 
-  // YOLO / auto-approve is per-session: reply "once" only to permissions
-  // belonging to a session whose YOLO toggle is on. Other sessions' prompts
-  // still surface normally.
+  // Per-session YOLO: reply "once" only for sessions whose toggle is on.
   useEffect(() => {
     for (const perm of pendingPermissions) {
       if (!autoApproveBySession[perm.sessionID]) continue;
@@ -198,10 +215,6 @@ export default function App(): React.ReactElement {
     }
   }, [autoApproveBySession, pendingPermissions]);
 
-  // Attention cue when something blocks the agent and needs the user — a
-  // question, or a permission request whose session isn't in YOLO. Tracks
-  // counts so it only fires when a new item actually arrives. A permission
-  // for a YOLO session is auto-approved, so it should not raise the cue.
   const prevQCountRef = useRef(0);
   const prevPCountRef = useRef(0);
   useEffect(() => {
@@ -467,8 +480,10 @@ export default function App(): React.ReactElement {
                   <ChatInput sessionId={activeSessionId} />
                 </>
               )}
-              <QuestionOverlay sessionId={activeSessionId} />
-              <PermissionOverlay sessionId={activeSessionId} />
+              <div className="overlay-anchor" ref={overlayRef}>
+                <QuestionOverlay sessionId={activeSessionId} />
+                <PermissionOverlay sessionId={activeSessionId} />
+              </div>
             </>
           ) : (
             <div className="chat-empty">

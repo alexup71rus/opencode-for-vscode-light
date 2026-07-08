@@ -16,7 +16,6 @@ export function QueueBar(): React.ReactElement | null {
 
   if (queuedMessages.length === 0) return null;
   const total = queuedMessages.length;
-  // Collapsed shows the next-to-send item only; expanded shows the whole queue.
   const visible = expanded ? queuedMessages : queuedMessages.slice(0, 1);
   const hidden = total - visible.length;
 

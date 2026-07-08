@@ -115,6 +115,9 @@
   overflow-y: auto;
   min-height: 0;
   padding: 0 12px;
+  /* Reserve space above overlays so the last message stays visible. */
+  padding-bottom: var(--overlay-h, 0px);
+  transition: padding-bottom 0.18s var(--opencode-ease);
 }
 
 .chat-main {
@@ -178,8 +181,6 @@
   gap: 5px;
 }
 
-/* Cards are inset from the composer edge (not full-bleed) so the queue reads as
-   a distinct stack of pending items rather than another toolbar. */
 .queue-card {
   display: flex;
   align-items: flex-start;
@@ -239,8 +240,6 @@
   color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground));
 }
 
-/* Two-line clamp: enough to preview the intent without letting one long queued
-   message balloon the strip. */
 .queue-card-text {
   flex: 1 1 auto;
   min-width: 0;
@@ -303,9 +302,7 @@
   text-decoration: underline;
 }
 
-/* ===== Session status strip (retry + session errors) =====
-   Sits just above the composer. Scoped to the active chat, unlike the global
-   app banner at the top (which is for system/connection failures). */
+/* ===== Session status strip (retry + session errors) ===== */
 
 .session-strip {
   flex: 0 0 auto;
@@ -319,8 +316,7 @@
   line-height: 1.4;
 }
 
-/* Retry / reconnect — shown while opencode is retrying a dropped request
-   (network blip). Neutral, non-alarming: it's self-healing. */
+/* Retry / reconnect pill */
 .session-strip-retry {
   align-items: center;
   background: var(--vscode-editorHoverWidget-background, rgba(128, 128, 128, 0.1));
@@ -347,8 +343,7 @@
   opacity: 0.8;
 }
 
-/* Session-scoped error emitted by the opencode server. Dismissable and
-   auto-cleared when the session next goes busy. */
+/* Session-scoped error */
 .session-strip-error {
   background: var(--vscode-inputValidation-errorBackground, rgba(248, 81, 73, 0.12));
   border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-charts-red, #f85149));
