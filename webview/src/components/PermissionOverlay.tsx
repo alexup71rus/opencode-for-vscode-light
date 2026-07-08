@@ -8,15 +8,16 @@ interface PermissionOverlayProps {
 
 export function PermissionOverlay({ sessionId }: PermissionOverlayProps): React.ReactElement | null {
   const all = useStore((s) => s.pendingPermissions);
-  const autoApprove = useStore((s) => s.settings.autoApprove);
+  const autoApprove = useStore((s) => s.autoApproveBySession[sessionId] ?? false);
   const perms = useMemo(
     () => all.filter((p) => p.sessionID === sessionId),
     [all, sessionId],
   );
-  // In YOLO mode the auto-approve effect replies instantly to every pending
-  // permission; rendering the overlay for the roundtrip window produces a
-  // flash. Suppress it entirely — the permission still flows through the store
-  // so the auto-approve effect can reply, it just never becomes visible.
+  // When this session is in YOLO the auto-approve effect replies instantly to
+  // every pending permission; rendering the overlay for the roundtrip window
+  // produces a flash. Suppress it entirely — the permission still flows through
+  // the store so the auto-approve effect can reply, it just never becomes
+  // visible.
   if (autoApprove || perms.length === 0) return null;
 
   const current = perms[0]!;

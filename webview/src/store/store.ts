@@ -28,7 +28,6 @@ import type { FileChange } from "../changes";
 
 export interface Settings {
   systemPrompt: string;
-  autoApprove: boolean;
   expandThinking: boolean;
   autoExpandBash: boolean;
   autoExpandEdit: boolean;
@@ -67,6 +66,16 @@ export interface AppState {
 
   pendingPermissions: Permission[];
   pendingQuestions: QuestionRequest[];
+
+  // YOLO / auto-approve is per-session and intentionally NOT persisted: it
+  // auto-approves dangerous tools (bash/edit/task), so silently restoring it
+  // across a VS Code reload would be a footgun. Resets to off on reload.
+  autoApproveBySession: Record<string, boolean>;
+
+  // Session-scoped errors emitted by the opencode server (session.error).
+  // Kept separate from the global `errorMessage` banner (which is for
+  // system/operational failures) and surfaced above the composer instead.
+  sessionErrors: Record<string, string>;
 
   providers: ProviderInfo[];
   selectedModel: ModelSelection | null;
@@ -172,7 +181,12 @@ export interface AppState {
   enqueueMessage: (sessionId: string, m: Omit<QueuedMessage, "id">, priority?: boolean) => void;
   removeQueuedMessage: (sessionId: string, id: string) => void;
   shiftQueuedMessage: (sessionId: string) => QueuedMessage | undefined;
+  reorderQueuedMessages: (sessionId: string, fromId: string, toId: string) => void;
   clearPendingImageInsert: () => void;
+  /** Toggle YOLO / auto-approve for a single session (in-memory only). */
+  setAutoApprove: (sessionId: string, on: boolean) => void;
+  /** Dismiss a session-scoped opencode error surfaced above the composer. */
+  dismissSessionError: (sessionId: string) => void;
   reset: () => void;
 }
 
@@ -248,7 +262,7 @@ const initialState = {
   todosBySession: {} as Record<string, Todo[]>,
   mcpStatus: {} as Record<string, McpServerStatus>,
   lspStatus: [] as LspStatusInfo[],
-  settings: { systemPrompt: "", autoApprove: false, expandThinking: false, autoExpandBash: false, autoExpandEdit: true, autoExpandError: true, soundOnComplete: true, sendOnEnter: true, logToFile: true },
+  settings: { systemPrompt: "", expandThinking: false, autoExpandBash: false, autoExpandEdit: true, autoExpandError: true, soundOnComplete: true, sendOnEnter: true, logToFile: true },
   pinnedSessions: [] as string[],
   sessionSearch: "",
   collapsedProviders: [] as string[],
@@ -263,6 +277,8 @@ const initialState = {
   activeFileName: null as string | null,
   selection: null as string | null,
   sessionStatus: {} as Record<string, SessionStatusInfo>,
+  autoApproveBySession: {} as Record<string, boolean>,
+  sessionErrors: {} as Record<string, string>,
   queuedMessagesBySession: {} as Record<string, QueuedMessage[]>,
   suppressQueueOnIdle: false,
   diffModal: null as AppState["diffModal"],
@@ -324,7 +340,6 @@ export const useStore = create<AppState>((set, get) => ({
   rightPanelOpen: persistedUi.rightPanelOpen ?? false,
   settings: {
     systemPrompt: persistedUi.settings?.systemPrompt ?? "",
-    autoApprove: persistedUi.settings?.autoApprove ?? false,
     expandThinking: persistedUi.settings?.expandThinking ?? false,
     autoExpandBash: persistedUi.settings?.autoExpandBash ?? false,
     autoExpandEdit: persistedUi.settings?.autoExpandEdit ?? true,
@@ -420,6 +435,20 @@ export const useStore = create<AppState>((set, get) => ({
       const cur = s.queuedMessagesBySession[sessionId];
       if (!cur) return {};
       return { queuedMessagesBySession: { ...s.queuedMessagesBySession, [sessionId]: cur.filter((q) => q.id !== id) } };
+    });
+  },
+  reorderQueuedMessages: (sessionId, fromId, toId) => {
+    if (fromId === toId) return;
+    set((s) => {
+      const cur = s.queuedMessagesBySession[sessionId];
+      if (!cur) return {};
+      const from = cur.findIndex((q) => q.id === fromId);
+      const to = cur.findIndex((q) => q.id === toId);
+      if (from === -1 || to === -1) return {};
+      const next = cur.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return { queuedMessagesBySession: { ...s.queuedMessagesBySession, [sessionId]: next } };
     });
   },
   shiftQueuedMessage: (sessionId) => {
@@ -559,9 +588,19 @@ export const useStore = create<AppState>((set, get) => ({
         break;
 
       case "sessionStatus":
-        set((s) => ({
-          sessionStatus: { ...s.sessionStatus, [msg.sessionId]: msg.status },
-        }));
+        set((s) => {
+          // A session going busy means a fresh turn started — clear any stale
+          // session-scoped error so a previous failure doesn't linger above the
+          // composer while new output streams in.
+          if (msg.status.type === "busy" && s.sessionErrors[msg.sessionId]) {
+            const { [msg.sessionId]: _drop, ...restErrors } = s.sessionErrors;
+            return {
+              sessionStatus: { ...s.sessionStatus, [msg.sessionId]: msg.status },
+              sessionErrors: restErrors,
+            };
+          }
+          return { sessionStatus: { ...s.sessionStatus, [msg.sessionId]: msg.status } };
+        });
         break;
 
       case "models":
@@ -741,6 +780,15 @@ export const useStore = create<AppState>((set, get) => ({
         set({ errorMessage: msg.message });
         break;
 
+      case "sessionError":
+        // Session-scoped opencode error: surface it above that session's
+        // composer instead of the global banner, so an error in a background
+        // session doesn't hijack the whole UI.
+        set((s) => ({
+          sessionErrors: { ...s.sessionErrors, [msg.sessionId]: msg.message },
+        }));
+        break;
+
       case "serverStatus":
         set((s) => ({
           serverStatus: msg.status,
@@ -823,6 +871,18 @@ export const useStore = create<AppState>((set, get) => ({
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setHelpOpen: (open) => set({ helpOpen: open }),
+
+  setAutoApprove: (sessionId, on) =>
+    set((s) => ({
+      autoApproveBySession: { ...s.autoApproveBySession, [sessionId]: on },
+    })),
+  dismissSessionError: (sessionId) =>
+    set((s) => {
+      if (!(sessionId in s.sessionErrors)) return s;
+      const next = { ...s.sessionErrors };
+      delete next[sessionId];
+      return { sessionErrors: next };
+    }),
 
   requestPermissionRules: () => postMessage({ type: "getPermissionRules" }),
   savePermissionRule: (rule) => postMessage({ type: "savePermissionRule", rule }),

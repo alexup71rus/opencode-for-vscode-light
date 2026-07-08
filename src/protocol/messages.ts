@@ -75,6 +75,7 @@ export type ExtensionToWebview =
   | { type: "imageSaved"; path: string; mime: string; filename: string }
   | { type: "imagesPicked"; items: { path: string; mime: string; filename: string }[] }
   | { type: "error"; message: string }
+  | { type: "sessionError"; sessionId: string; message: string }
   | { type: "serverStatus"; status: "starting" | "ready" | "error"; url?: string; message?: string; binaryPath?: string; isManaged?: boolean; externalUrl?: string };
 
 export type WebviewToExtension =

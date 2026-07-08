@@ -8,6 +8,7 @@ import { ChatInput } from "./components/ChatInput";
 import { QueueBar } from "./components/QueueBar";
 import { QuestionOverlay } from "./components/QuestionOverlay";
 import { PermissionOverlay } from "./components/PermissionOverlay";
+import { SessionErrorBar } from "./components/SessionErrorBar";
 import { playCompleteSound, playAttentionSound } from "./utils/sound";
 import { InspectPanel } from "./components/InspectPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -60,7 +61,7 @@ export default function App(): React.ReactElement {
   const setHelpOpen = useStore((s) => s.setHelpOpen);
   const pendingPermissions = useStore((s) => s.pendingPermissions);
   const pendingQuestions = useStore((s) => s.pendingQuestions);
-  const autoApprove = useStore((s) => s.settings.autoApprove);
+  const autoApproveBySession = useStore((s) => s.autoApproveBySession);
   const pinnedSessions = useStore((s) => s.pinnedSessions);
   const agents = useStore((s) => s.agents);
   const messagesBySession = useStore((s) => s.messagesBySession);
@@ -182,9 +183,12 @@ export default function App(): React.ReactElement {
     postMessage({ type: "setLogToFile", enabled: useStore.getState().settings.logToFile });
   }, []);
 
+  // YOLO / auto-approve is per-session: reply "once" only to permissions
+  // belonging to a session whose YOLO toggle is on. Other sessions' prompts
+  // still surface normally.
   useEffect(() => {
-    if (!autoApprove) return;
     for (const perm of pendingPermissions) {
+      if (!autoApproveBySession[perm.sessionID]) continue;
       postMessage({
         type: "replyPermission",
         sessionId: perm.sessionID,
@@ -192,23 +196,23 @@ export default function App(): React.ReactElement {
         decision: "once",
       });
     }
-  }, [autoApprove, pendingPermissions]);
+  }, [autoApproveBySession, pendingPermissions]);
 
   // Attention cue when something blocks the agent and needs the user — a
-  // question, or a permission request that isn't auto-approved (YOLO). Tracks
-  // counts so it only fires when a new item actually arrives.
+  // question, or a permission request whose session isn't in YOLO. Tracks
+  // counts so it only fires when a new item actually arrives. A permission
+  // for a YOLO session is auto-approved, so it should not raise the cue.
   const prevQCountRef = useRef(0);
   const prevPCountRef = useRef(0);
   useEffect(() => {
     const qCount = pendingQuestions.length;
-    const pCount = pendingPermissions.length;
+    const pCount = pendingPermissions.filter((p) => !autoApproveBySession[p.sessionID]).length;
     const grew =
-      qCount > prevQCountRef.current ||
-      (!autoApprove && pCount > prevPCountRef.current);
+      qCount > prevQCountRef.current || pCount > prevPCountRef.current;
     prevQCountRef.current = qCount;
     prevPCountRef.current = pCount;
     if (grew && useStore.getState().settings.soundOnComplete) playAttentionSound();
-  }, [pendingQuestions, pendingPermissions, autoApprove]);
+  }, [pendingQuestions, pendingPermissions, autoApproveBySession]);
 
   useEffect(() => {
     const isMac = navigator.platform.toLowerCase().includes("mac");
@@ -445,6 +449,7 @@ export default function App(): React.ReactElement {
           ) : activeSessionId ? (
             <>
               <ChatView sessionId={activeSessionId} />
+              <SessionErrorBar sessionId={activeSessionId} />
               {activeIsChild ? (
                 <div className="subagent-back-bar">
                   <button

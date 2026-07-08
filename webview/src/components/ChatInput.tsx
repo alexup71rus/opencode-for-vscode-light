@@ -59,8 +59,8 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
   const selection = useStore((s) => s.selection);
   const status = useStore((s) => s.sessionStatus[sessionId]);
   const sessionMeta = useStore((s) => s.sessions.find((x) => x.id === sessionId));
-  const autoApprove = useStore((s) => s.settings.autoApprove);
-  const updateSettings = useStore((s) => s.updateSettings);
+  const autoApprove = useStore((s) => s.autoApproveBySession[sessionId] ?? false);
+  const setAutoApprove = useStore((s) => s.setAutoApprove);
   const commands = useStore((s) => s.commands);
   const skills = useStore((s) => s.skills);
   const pinnedSlash = useStore((s) => s.pinnedSlash);
@@ -928,12 +928,12 @@ export function ChatInput({ sessionId }: ChatInputProps): React.ReactElement {
               className={`meta-yolo ${autoApprove ? "on" : ""}`}
               title={
                 autoApprove
-                  ? "YOLO mode is ON — every tool request is auto-approved. Click to turn off."
-                  : "YOLO mode is off — tool requests need approval. Click to auto-approve everything."
+                  ? "YOLO mode is ON for this chat — every tool request is auto-approved. Click to turn off."
+                  : "YOLO mode is off — tool requests in this chat need approval. Click to auto-approve everything here."
               }
-              aria-label={autoApprove ? "YOLO mode on, click to turn off" : "YOLO mode off, click to turn on"}
+              aria-label={autoApprove ? "YOLO mode on for this chat, click to turn off" : "YOLO mode off, click to turn on"}
               aria-pressed={autoApprove}
-              onClick={() => updateSettings({ autoApprove: !autoApprove })}
+              onClick={() => setAutoApprove(sessionId, !autoApprove)}
             >
               YOLO
             </button>

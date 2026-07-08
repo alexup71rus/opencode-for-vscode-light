@@ -8,12 +8,17 @@ export function QueueBar(): React.ReactElement | null {
     sessionId ? (s.queuedMessagesBySession[sessionId] ?? []) : [],
   );
   const removeQueuedMessage = useStore((s) => s.removeQueuedMessage);
+  const reorderQueuedMessages = useStore((s) => s.reorderQueuedMessages);
   const setDraft = useStore((s) => s.setDraft);
   const [expanded, setExpanded] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   if (queuedMessages.length === 0) return null;
-  const first = queuedMessages[0];
-  const more = queuedMessages.length - 1;
+  const total = queuedMessages.length;
+  // Collapsed shows the next-to-send item only; expanded shows the whole queue.
+  const visible = expanded ? queuedMessages : queuedMessages.slice(0, 1);
+  const hidden = total - visible.length;
 
   // Send straight to the server now — same "send now" path as the composer's
   // force button, reusing the context/options/attachments captured at enqueue
@@ -38,85 +43,97 @@ export function QueueBar(): React.ReactElement | null {
     removeQueuedMessage(sessionId, q.id);
   };
 
-  const actions = (q: QueuedMessage) => (
-    <>
-      <button
-        type="button"
-        className="queue-item-action"
-        title="Send now"
-        aria-label="Send now"
-        onClick={() => forceSendQueued(q)}
-      >
-        <span className="codicon codicon-send" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className="queue-item-action"
-        title="Edit in composer"
-        aria-label="Edit in composer"
-        onClick={() => editQueued(q)}
-      >
-        <span className="codicon codicon-edit" aria-hidden="true" />
-      </button>
-    </>
-  );
+  const onDrop = (targetId: string) => {
+    if (sessionId && dragId && dragId !== targetId) {
+      reorderQueuedMessages(sessionId, dragId, targetId);
+    }
+    setDragId(null);
+    setOverId(null);
+  };
 
-  if (expanded) {
-    return (
-      <div className="queue-bar open">
-        <div className="queue-bar-head">
-          <span className="queue-bar-label">Queued · {queuedMessages.length}</span>
+  return (
+    <div className={`queue-bar ${expanded ? "open" : ""}`}>
+      <div className="queue-bar-head">
+        <span className="queue-bar-label">
+          Queued · {total}
+          <span className="queue-bar-hint" title="Sent when the agent finishes its answer">
+            sent after the current turn
+          </span>
+        </span>
+        {total > 1 && (
           <button
             className="queue-bar-toggle"
-            title="Collapse to one line"
-            onClick={() => setExpanded(false)}
+            title={expanded ? "Collapse to next message" : `Show all ${total}`}
+            onClick={() => setExpanded((v) => !v)}
           >
-            Collapse
+            {expanded ? "Collapse" : `Show all ${total}`}
           </button>
-        </div>
-        <div className="queue-bar-items">
-          {queuedMessages.map((q) => (
-            <div key={q.id} className="queue-item">
-              <span className="queue-item-text">{q.text}</span>
-              {actions(q)}
+        )}
+      </div>
+
+      <div className="queue-list">
+        {visible.map((q, i) => (
+          <div
+            key={q.id}
+            className={`queue-card${dragId === q.id ? " dragging" : ""}${overId === q.id ? " drag-over" : ""}`}
+            draggable={expanded && total > 1}
+            onDragStart={() => setDragId(q.id)}
+            onDragEnd={() => {
+              setDragId(null);
+              setOverId(null);
+            }}
+            onDragOver={(e) => {
+              if (!dragId || dragId === q.id) return;
+              e.preventDefault();
+              setOverId(q.id);
+            }}
+            onDrop={() => onDrop(q.id)}
+          >
+            {expanded && total > 1 && (
+              <span className="queue-card-grip" title="Drag to reorder" aria-hidden="true">
+                <span className="codicon codicon-gripper" />
+              </span>
+            )}
+            <span className="queue-card-index" aria-hidden="true">
+              {i + 1}
+            </span>
+            <span className="queue-card-text">{q.text}</span>
+            <div className="queue-card-actions">
               <button
-                className="queue-item-remove"
+                type="button"
+                className="queue-item-action"
+                title="Send now"
+                aria-label="Send now"
+                onClick={() => forceSendQueued(q)}
+              >
+                <span className="codicon codicon-send" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="queue-item-action"
+                title="Edit in composer"
+                aria-label="Edit in composer"
+                onClick={() => editQueued(q)}
+              >
+                <span className="codicon codicon-edit" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="queue-item-action queue-item-action-danger"
                 title="Remove from queue"
                 aria-label="Remove from queue"
                 onClick={() => sessionId && removeQueuedMessage(sessionId, q.id)}
               >
-                ✕
+                <span className="codicon codicon-close" aria-hidden="true" />
               </button>
             </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="queue-bar">
-      <div className="queue-item queue-item-single">
-        <span className="queue-bar-pill" title={`Queued — sent when the agent finishes its answer`}>
-          Queued · {queuedMessages.length}
-        </span>
-        <span className="queue-item-text">{first.text}</span>
-        {actions(first)}
-        <button
-          className="queue-bar-toggle"
-          title={more > 0 ? `Show ${more} more` : "Expand"}
-          onClick={() => setExpanded(true)}
-        >
-          {more > 0 ? `+${more} more` : "Expand"}
-        </button>
-        <button
-          className="queue-item-remove"
-          title="Remove from queue"
-          aria-label="Remove from queue"
-          onClick={() => sessionId && removeQueuedMessage(sessionId, first.id)}
-        >
-          ✕
-        </button>
+          </div>
+        ))}
+        {!expanded && hidden > 0 && (
+          <button className="queue-more" onClick={() => setExpanded(true)}>
+            +{hidden} more queued
+          </button>
+        )}
       </div>
     </div>
   );

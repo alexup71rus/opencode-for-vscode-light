@@ -916,7 +916,11 @@ export class WebviewPanelManager {
               ? String((payload.error as { message: unknown }).message)
               : "unknown server error";
       this.output.appendLine(`[opencode] session ${payload.sessionId} error: ${detail}`);
-      this.postMessage({ type: "error", message: detail });
+      // Session-scoped: surface it above that session's composer rather than in
+      // the global error banner (which is reserved for system/operational
+      // failures and would misleadingly blame the whole server for a single
+      // session's model error).
+      this.postMessage({ type: "sessionError", sessionId: payload.sessionId, message: detail });
     });
 
     this.addListener(session, "permissionRequest", (...args) => {

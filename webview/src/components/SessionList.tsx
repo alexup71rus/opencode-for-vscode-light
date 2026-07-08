@@ -48,18 +48,18 @@ export function SessionList(): React.ReactElement {
   const sessionStatus = useStore((s) => s.sessionStatus);
   const pendingPermissions = useStore((s) => s.pendingPermissions);
   const pendingQuestions = useStore((s) => s.pendingQuestions);
-  const autoApprove = useStore((s) => s.settings.autoApprove);
+  const autoApproveBySession = useStore((s) => s.autoApproveBySession);
   const actionSessions = useMemo(() => {
     const set = new Set<string>();
-    // In YOLO mode permissions are auto-approved and would only flash the
-    // badge for the roundtrip window; skip them. Questions always need user
-    // attention regardless of YOLO.
-    if (!autoApprove) {
-      for (const p of pendingPermissions) set.add(p.sessionID);
+    // A session in YOLO auto-approves its permissions, which would only flash
+    // the badge for the roundtrip window; skip those. Questions always need
+    // user attention regardless of YOLO.
+    for (const p of pendingPermissions) {
+      if (!autoApproveBySession[p.sessionID]) set.add(p.sessionID);
     }
     for (const q of pendingQuestions) set.add(q.sessionID);
     return set;
-  }, [pendingPermissions, pendingQuestions, autoApprove]);
+  }, [pendingPermissions, pendingQuestions, autoApproveBySession]);
   const agents = useStore((s) => s.agents);
   const subagentToolNames = useMemo(() => {
     const names = new Set<string>(["task"]);
